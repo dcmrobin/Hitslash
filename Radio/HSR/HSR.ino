@@ -633,18 +633,24 @@ bool connectToModem() {
   DEBUG_PRINTLN("Modem powered on");
   
   // Wait for modem to boot
-  for (int waitTime = 0; waitTime < 10000; waitTime += 100) {
-    if (waitTime % 1000 == 0) {
-      int secondsLeft = 10 - (waitTime/1000);
-      buildConnectingText("Powering modem...");
-      display.setCursor(0, 55);
-      display.print("Waiting for modem ");
-      display.print(secondsLeft);
-      display.print("s   ");
-      drawBatteryIcon(0, display.height() - 15);
-      display.display();
-    }
-    delay(100);
+  for (int waitTime = 0; waitTime < 60000; waitTime += 100) {
+      if (!digitalRead(BTN_REFRESH)) {
+          DEBUG_PRINTLN("Modem boot bypassed - entering setup");
+          digitalWrite(LTE_MOSFET_PIN, LOW);
+          modemPoweredOn = false;
+          return false;  // Will fall into setup
+      }
+
+      if (waitTime % 1000 == 0) {
+          int secondsLeft = 10 - (waitTime/1000);
+          buildConnectingText("Powering modem...");
+          display.setCursor(0, 55);
+          display.printf("Waiting %ds   ", secondsLeft);
+          drawBatteryIcon(0, display.height() - 15);
+          display.display();
+      }
+
+      delay(100);
   }
   
   return tryConnect(MODEM_SSID, MODEM_PASSWORD);
