@@ -642,7 +642,7 @@ bool connectToModem() {
       }
 
       if (waitTime % 1000 == 0) {
-          int secondsLeft = 10 - (waitTime/1000);
+          int secondsLeft = 60 - (waitTime/1000);
           buildConnectingText("Powering modem...");
           display.setCursor(0, 55);
           display.printf("Waiting %ds   ", secondsLeft);
