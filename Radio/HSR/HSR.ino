@@ -398,9 +398,6 @@ void buildSetupText() {
   lines[totalLines++] = "";
   lines[totalLines++] = "If not open:";
   lines[totalLines++] = "192.168.4.1";
-  lines[totalLines++] = "";
-  lines[totalLines++] = "Hold REFRESH at";
-  lines[totalLines++] = "boot for setup";
 }
 
 void buildNetworkListText() {
@@ -424,7 +421,7 @@ void buildNetworkListText() {
   lines[totalLines++] = "UP/DOWN: Select";
   lines[totalLines++] = "LEFT: Delete";
   lines[totalLines++] = "RIGHT: Clear All";
-  lines[totalLines++] = "REFRESH: Exit";
+  lines[totalLines++] = "Hold refresh restart";
 }
 
 void buildConnectingText(const char* message) {
@@ -531,7 +528,9 @@ void drawWifiInfoScreen() {
   display.print("Volume: ");
   display.println(audio.getVolume());
   display.print("");
+  display.setCursor(0, 80);
   display.print("Hold refresh for");
+  display.setCursor(0, 92);
   display.print("network management.");
   
   // Draw battery in bottom left
@@ -622,8 +621,6 @@ bool connectToSavedNetworks() {
 bool connectToModem() {
   DEBUG_PRINTLN("Trying modem network...");
   
-  buildConnectingText("Powering modem...");
-  
   // Power on the modem
   digitalWrite(LTE_MOSFET_PIN, HIGH);
   modemPoweredOn = true;
@@ -633,6 +630,7 @@ bool connectToModem() {
   for (int waitTime = 0; waitTime < 10000; waitTime += 100) {
     if (waitTime % 1000 == 0) {
       int secondsLeft = 10 - (waitTime/1000);
+      buildConnectingText("Powering modem...");
       display.setCursor(0, 55);
       display.print("Waiting for modem ");
       display.print(secondsLeft);
@@ -732,8 +730,7 @@ void handleButtons() {
           refreshPressTime = millis();
         } else if (millis() - refreshPressTime > 3000) {
           currentMode = MODE_MANAGE_NETWORKS;
-        } else if (millis() - refreshPressTime > 5000) {
-          ESP.restart();
+          scrollOffset = 0;
         }
       }
       lastButtonPress = millis();
@@ -743,42 +740,41 @@ void handleButtons() {
   }
   
   if (currentMode == MODE_MANAGE_NETWORKS) {
+    drawNetworkListScreen();
     // Network management mode buttons
     if (!digitalRead(BTN_UP) && selectedNetworkIndex > 0) {
       selectedNetworkIndex--;
       scrollOffset = 0;
-      drawNetworkListScreen();
       lastButtonPress = millis();
     }
     
     if (!digitalRead(BTN_DOWN) && selectedNetworkIndex < savedCount - 1) {
       selectedNetworkIndex++;
       scrollOffset = 0;
-      drawNetworkListScreen();
       lastButtonPress = millis();
     }
     
     if (!digitalRead(BTN_LEFT) && savedCount > 0) {
       // Delete selected network
       deleteNetwork(selectedNetworkIndex);
-      drawNetworkListScreen();
       lastButtonPress = millis();
     }
     
     if (!digitalRead(BTN_RIGHT)) {
       // Clear all networks
       clearAllNetworks();
-      drawNetworkListScreen();
       lastButtonPress = millis();
     }
-    
-    // Refresh button in network management - exit to setup
+
     if (!digitalRead(BTN_REFRESH)) {
-      currentMode = MODE_SETUP;
-      scrollOffset = 0;
-      buildSetupText();
-      drawSetupScreen();
-      lastButtonPress = millis();
+      if (!refreshHeld) {
+        refreshHeld = true;
+        refreshPressTime = millis();
+      } else if (millis() - refreshPressTime > 5000) {
+        ESP.restart();
+      }
+    } else {
+      refreshHeld = false;
     }
   }
   
@@ -790,8 +786,7 @@ void handleButtons() {
         refreshPressTime = millis();
       } else if (millis() - refreshPressTime > 3000) {
         currentMode = MODE_MANAGE_NETWORKS;
-      } else if (millis() - refreshPressTime > 5000) {
-        ESP.restart();
+        scrollOffset = 0;
       }
     } else {
       refreshHeld = false;
@@ -1030,6 +1025,7 @@ void setup() {
   DEBUG_PRINTLN("All connections failed - entering setup");
   buildConnectingText("Connection failed");
   delay(2000);
+  // When entering setup after all fails, ensure setup text is shown
   enterSetupMode();
 }
 
