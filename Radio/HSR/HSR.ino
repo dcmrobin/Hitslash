@@ -1,0 +1,1108 @@
+/********************************************************************
+  HITSLASH RADIO - WITH BATTERY MONITOR AND FIXED AP BEHAVIOR
+********************************************************************/
+
+#include <SPI.h>
+#include <Wire.h>
+#include <WiFi.h>
+#include <WebServer.h>
+#include <DNSServer.h>
+#include <Preferences.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH110X.h>
+#include <Adafruit_MAX1704X.h>
+#include "Audio.h"
+
+// Debug macro - set to 1 to enable verbose debugging
+#define DEBUG 0
+
+#if DEBUG
+  #define DEBUG_PRINT(x) Serial.print(x)
+  #define DEBUG_PRINTLN(x) Serial.println(x)
+  #define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(x)
+  #define DEBUG_PRINTLN(x)
+  #define DEBUG_PRINTF(...)
+#endif
+
+// =====================================================
+// ================= DISPLAY ===========================
+// =====================================================
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 128
+
+#define OLED_DC     9
+#define OLED_CS     10
+#define OLED_RESET  8
+
+Adafruit_SH1107 display =
+  Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI,
+                  OLED_DC, OLED_RESET, OLED_CS);
+
+// =====================================================
+// ================= BATTERY MONITOR ===================
+// =====================================================
+
+Adafruit_MAX17048 max17048;
+float batteryVoltage = 0;
+float batteryPercent = 0;
+unsigned long lastBatteryRead = 0;
+
+// =====================================================
+// ================= MODES =============================
+// =====================================================
+
+enum DeviceMode {
+  MODE_SETUP,
+  MODE_RADIO,
+  MODE_CONNECTING,
+  MODE_MANAGE_NETWORKS
+};
+
+DeviceMode currentMode = MODE_SETUP;
+
+// =====================================================
+// ================= BUTTONS ===========================
+// =====================================================
+
+#define BTN_UP      6
+#define BTN_DOWN    5
+#define BTN_REFRESH 14
+#define BTN_LEFT    4
+#define BTN_RIGHT   3
+
+bool refreshHeld = false;
+unsigned long refreshPressTime = 0;
+
+// =====================================================
+// ================= LTE / MODEM =======================
+// =====================================================
+
+#define LTE_MOSFET_PIN 15
+#define MODEM_SSID "hitslash-router"
+#define MODEM_PASSWORD "hitslashradio"
+bool modemPoweredOn = false;
+
+// =====================================================
+// ================= WIFI ==============================
+// =====================================================
+
+WebServer server(80);
+DNSServer dnsServer;
+Preferences preferences;
+
+unsigned long lastStatusUpdate = 0;
+const char* AP_SSID = "HITSLASH-RADIO-SETUP";
+IPAddress apIP(192,168,4,1);
+IPAddress netMask(255,255,255,0);
+
+// Saved networks list
+String savedSSIDs[10];
+String savedPasswords[10];
+int savedCount = 0;
+int selectedNetworkIndex = 0;
+
+// HTML page for captive portal
+const char* htmlPage = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <title>HITSLASH Radio Setup</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; 
+            text-align: center; 
+            margin: 0; 
+            padding: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        h1 { color: #4CAF50; }
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            border-radius: 5px; 
+            border: 1px solid #444;
+            background: #333;
+            color: white;
+            box-sizing: border-box;
+        }
+        button { 
+            background: #4CAF50; 
+            color: white; 
+            padding: 12px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            width: 100%;
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        button.danger { background: #f44336; }
+        button.secondary { background: #555; }
+        .info { color: #888; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>HITSLASH Radio</h1>
+        <h2>WiFi Setup</h2>
+        
+        <form action="/save" method="POST" target="hidden-form">
+            <div class="form-group">
+                <label>Network Name (SSID)</label>
+                <input type="text" name="ssid" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password">
+            </div>
+            <button type="submit">Save and Connect</button>
+        </form>
+        
+        <button class="secondary" onclick="window.location.href='/manage'">Manage Saved Networks</button>
+        
+        <div class="info">
+            <p>After saving, the radio will attempt to connect.</p>
+        </div>
+    </div>
+    
+    <iframe name="hidden-form" style="display:none"></iframe>
+</body>
+</html>
+)rawliteral";
+
+// =====================================================
+// ================= AUDIO =============================
+// =====================================================
+
+Audio audio;
+
+#define I2S_BCLK 12
+#define I2S_LRC  11
+#define I2S_DOUT 13
+
+#define POT_PIN A0
+
+const char* stations[] = {
+  "https://hypr.website/hypr.mp3",
+  "https://scenestream.io/necta64.mp3",
+  "http://radio.chapter3-it.io/cvgm64",
+  "http://stream.keygen-fm.ru:8082/listen.mp3"
+};
+
+const char* stationNames[] = {
+  "HYPR", "NECTA", "CVGM", "KEYGEN"
+};
+
+const int stationCount = 4;
+int currentStation = 0;
+
+unsigned long lastReconnect = 0;
+
+// =====================================================
+// ================= SCREEN STATES =====================
+// =====================================================
+
+enum DisplayMode {
+  DISPLAY_STATION,
+  DISPLAY_WIFI_INFO,
+  DISPLAY_NETWORK_LIST
+};
+
+DisplayMode currentDisplay = DISPLAY_STATION;
+unsigned long lastButtonPress = 0;
+const unsigned long debounceTime = 200;
+
+// =====================================================
+// ================= SCROLL SYSTEM =====================
+// =====================================================
+
+#define MAX_LINES 20
+String lines[MAX_LINES];
+int totalLines = 0;
+int scrollOffset = 0;
+int lineHeight = 10;
+int maxVisibleLines = 12;
+
+// =====================================================
+// ================= BATTERY FUNCTIONS =================
+// =====================================================
+
+void initBattery() {
+  DEBUG_PRINTLN("Initializing MAX17048 battery monitor...");
+  if (!max17048.begin()) {
+    DEBUG_PRINTLN("Could not find MAX17048 battery monitor!");
+  } else {
+    DEBUG_PRINTLN("MAX17048 found!");
+  }
+}
+
+void updateBattery() {
+  if (millis() - lastBatteryRead > 1000) { // Update every second
+    batteryPercent = max17048.cellPercent();
+    batteryVoltage = max17048.cellVoltage();
+    lastBatteryRead = millis();
+    
+    DEBUG_PRINTF("Battery: %.2fV %.1f%%\n", batteryVoltage, batteryPercent);
+  }
+}
+
+void drawBatteryIcon(int x, int y) {
+  // Draw battery outline
+  display.drawRect(x, y, 25, 10, SH110X_WHITE);
+  display.drawRect(x + 25, y + 2, 3, 6, SH110X_WHITE);
+  
+  // Fill based on percentage
+  float pct = constrain(batteryPercent, 0, 100);
+  int fillWidth = map(pct, 0, 100, 0, 23);
+  if (fillWidth > 0) {
+    if (batteryPercent > 20) {
+      display.fillRect(x + 1, y + 1, fillWidth, 8, SH110X_WHITE);
+    } else {
+      // Low battery - fill with blinking or just outline
+      display.fillRect(x + 1, y + 1, fillWidth, 8, SH110X_WHITE);
+    }
+  }
+  
+  // Show percentage text
+  display.setCursor(x + 30, y);
+  display.setTextSize(1);
+  display.print((int)batteryPercent);
+  display.print("%");
+}
+
+// =====================================================
+// ================= SAVED NETWORKS ====================
+// =====================================================
+
+void loadSavedNetworks() {
+  DEBUG_PRINTLN("Loading saved networks...");
+  preferences.begin("wifi", true);
+  savedCount = preferences.getInt("count", 0);
+  
+  for (int i = 0; i < savedCount && i < 10; i++) {
+    savedSSIDs[i] = preferences.getString(("ssid_" + String(i)).c_str(), "");
+    savedPasswords[i] = preferences.getString(("pass_" + String(i)).c_str(), "");
+    DEBUG_PRINTF("Loaded %d: %s\n", i, savedSSIDs[i].c_str());
+  }
+  
+  preferences.end();
+  DEBUG_PRINTF("Total saved networks: %d\n", savedCount);
+}
+
+void saveNetwork(String ssid, String password) {
+  preferences.begin("wifi", false);
+
+  int count = preferences.getInt("count", 0);
+
+  // Prevent duplicates
+  for (int i = 0; i < count && i < 10; i++) {
+    String existing = preferences.getString(("ssid_" + String(i)).c_str(), "");
+    if (existing == ssid) {
+      DEBUG_PRINTLN("SSID already saved");
+      preferences.end();
+      return;
+    }
+  }
+
+  if (count >= 10) {
+    DEBUG_PRINTLN("Network storage full");
+    preferences.end();
+    return;
+  }
+
+  preferences.putString(("ssid_" + String(count)).c_str(), ssid);
+  preferences.putString(("pass_" + String(count)).c_str(), password);
+  preferences.putInt("count", count + 1);
+
+  preferences.end();
+  loadSavedNetworks();
+}
+
+void clearAllNetworks() {
+  DEBUG_PRINTLN("Clearing all saved networks");
+  
+  preferences.begin("wifi", false);
+  preferences.clear();
+  preferences.end();
+  
+  // Reload networks
+  loadSavedNetworks();
+  selectedNetworkIndex = 0;
+}
+
+void deleteNetwork(int index) {
+  if (index < 0 || index >= savedCount) return;
+  
+  DEBUG_PRINTF("Deleting network %d: %s\n", index, savedSSIDs[index].c_str());
+  
+  preferences.begin("wifi", false);
+  
+  // Shift all networks after index
+  for (int i = index + 1; i < savedCount; i++) {
+    String ssid = preferences.getString(("ssid_" + String(i)).c_str(), "");
+    String pass = preferences.getString(("pass_" + String(i)).c_str(), "");
+    preferences.putString(("ssid_" + String(i-1)).c_str(), ssid);
+    preferences.putString(("pass_" + String(i-1)).c_str(), pass);
+  }
+  
+  // Decrease count
+  int count = preferences.getInt("count", 0);
+  preferences.putInt("count", count - 1);
+  
+  preferences.end();
+  
+  // Reload networks
+  loadSavedNetworks();
+  
+  if (selectedNetworkIndex >= savedCount) {
+    selectedNetworkIndex = savedCount - 1;
+  }
+  if (selectedNetworkIndex < 0) selectedNetworkIndex = 0;
+}
+
+// =====================================================
+// ================= SETUP TEXT ========================
+// =====================================================
+
+void buildSetupText() {
+  totalLines = 0;
+  lines[totalLines++] = "HITSLASH RADIO";
+  lines[totalLines++] = "Setup Mode";
+  lines[totalLines++] = "";
+  lines[totalLines++] = "Connect to:";
+  lines[totalLines++] = AP_SSID;
+  lines[totalLines++] = "";
+  lines[totalLines++] = "Captive portal";
+  lines[totalLines++] = "should appear.";
+  lines[totalLines++] = "";
+  lines[totalLines++] = "If not open:";
+  lines[totalLines++] = "192.168.4.1";
+  lines[totalLines++] = "";
+  lines[totalLines++] = "Hold REFRESH at";
+  lines[totalLines++] = "boot for setup";
+}
+
+void buildNetworkListText() {
+  totalLines = 0;
+  lines[totalLines++] = "Saved Networks";
+  lines[totalLines++] = "-------------";
+  
+  if (savedCount == 0) {
+    lines[totalLines++] = "No networks saved";
+  } else {
+    for (int i = 0; i < savedCount; i++) {
+      String line = String(i+1) + ". " + savedSSIDs[i];
+      if (i == selectedNetworkIndex) {
+        line = "> " + line;
+      }
+      lines[totalLines++] = line;
+    }
+  }
+  
+  lines[totalLines++] = "";
+  lines[totalLines++] = "UP/DOWN: Select";
+  lines[totalLines++] = "LEFT: Delete";
+  lines[totalLines++] = "RIGHT: Clear All";
+  lines[totalLines++] = "REFRESH: Exit";
+}
+
+void buildConnectingText(const char* message) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 20);
+  display.println("Connecting...");
+  display.setCursor(0, 35);
+  display.println(message);
+  display.display();
+}
+
+// =====================================================
+// ================= DISPLAY FUNCTIONS =================
+// =====================================================
+
+void drawSetupScreen() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  
+  for (int i = 0; i < maxVisibleLines; i++) {
+    int lineIndex = i + scrollOffset;
+    if (lineIndex >= totalLines) break;
+    display.setCursor(0, i * lineHeight);
+    display.println(lines[lineIndex]);
+  }
+  
+  // Draw battery in bottom left
+  drawBatteryIcon(0, display.height() - 15);
+  
+  display.display();
+}
+
+void drawRadioScreen() {
+  display.clearDisplay();
+  
+  // Station name (large)
+  display.setTextSize(2);
+  display.setCursor(0, 10);
+  if (audio.isRunning()) {
+    display.println(stationNames[currentStation]);
+  } else if (!audio.isRunning() && millis() - lastReconnect > 5000){
+    display.println("ERROR");
+  }
+  
+  // Volume
+  display.setTextSize(1);
+  display.setCursor(0, 45);
+  display.print("Vol: ");
+  int vol = audio.getVolume();
+  display.print(vol);
+  
+  // Volume bar
+  int barWidth = map(vol, 0, 21, 0, 100);
+  display.drawRect(0, 60, 100, 8, SH110X_WHITE);
+  display.fillRect(0, 60, barWidth, 8, SH110X_WHITE);
+  
+  // Hint for button functions
+  display.setCursor(0, 80);
+  display.print("L/R: Station");
+  display.setCursor(0, 92);
+  display.print("U/D: Info");
+  
+  // Draw battery in bottom left
+  drawBatteryIcon(0, display.height() - 15);
+  
+  display.display();
+}
+
+void drawWifiInfoScreen() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  
+  display.setCursor(0, 0);
+  display.println("WiFi Info");
+  display.println("---------");
+  
+  display.print("SSID: ");
+  if (WiFi.status() == WL_CONNECTED) {
+    display.println(WiFi.SSID());
+  } else {
+    display.println("Not Connected");
+  }
+  
+  display.print("RSSI: ");
+  if (WiFi.status() == WL_CONNECTED) {
+    display.print(WiFi.RSSI());
+    display.println(" dBm");
+  } else {
+    display.println("N/A");
+  }
+  
+  display.print("IP: ");
+  if (WiFi.status() == WL_CONNECTED) {
+    display.println(WiFi.localIP());
+  } else {
+    display.println("None");
+  }
+  
+  display.println("---------");
+  display.print("Station: ");
+  display.println(stationNames[currentStation]);
+  
+  display.print("Volume: ");
+  display.println(audio.getVolume());
+  display.print("");
+  display.print("Hold refresh for");
+  display.print("network management.");
+  
+  // Draw battery in bottom left
+  drawBatteryIcon(0, display.height() - 15);
+  
+  display.display();
+}
+
+void drawNetworkListScreen() {
+  buildNetworkListText();
+  
+  display.clearDisplay();
+  display.setTextSize(1);
+  
+  for (int i = 0; i < maxVisibleLines; i++) {
+    int lineIndex = i + scrollOffset;
+    if (lineIndex >= totalLines) break;
+    display.setCursor(0, i * lineHeight);
+    display.println(lines[lineIndex]);
+  }
+  
+  // Draw battery in bottom left
+  drawBatteryIcon(0, display.height() - 15);
+  
+  display.display();
+}
+
+// =====================================================
+// ================= WIFI CONNECTION ===================
+// =====================================================
+
+bool tryConnect(const char* ssid, const char* password) {
+  DEBUG_PRINTF("Attempting to connect to SSID: %s\n", ssid);
+  
+  buildConnectingText(ssid);
+  
+  WiFi.begin(ssid, password);
+  
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) {
+    delay(500);
+    DEBUG_PRINT(".");
+    // Update display with dots
+    static int dotCount = 0;
+    display.setCursor(0, 55);
+    display.print("Connecting");
+    for (int i = 0; i < dotCount; i++) display.print(".");
+    display.print("   ");
+    drawBatteryIcon(0, display.height() - 15); // Keep battery updated
+    display.display();
+    dotCount = (dotCount + 1) % 4;
+  }
+  
+  bool connected = (WiFi.status() == WL_CONNECTED);
+  DEBUG_PRINTLN("");
+  
+  if (connected) {
+    DEBUG_PRINTLN("Connection SUCCESS!");
+    // Turn off modem when connected to WiFi
+    if (modemPoweredOn) {
+      digitalWrite(LTE_MOSFET_PIN, LOW);
+      modemPoweredOn = false;
+      DEBUG_PRINTLN("Modem powered off");
+    }
+  } else {
+    DEBUG_PRINTLN("Connection FAILED!");
+  }
+  
+  return connected;
+}
+
+bool connectToSavedNetworks() {
+  loadSavedNetworks();
+  
+  for (int i = 0; i < savedCount; i++) {
+    DEBUG_PRINTF("Trying network %d: %s\n", i, savedSSIDs[i].c_str());
+    
+    if (tryConnect(savedSSIDs[i].c_str(), savedPasswords[i].c_str())) {
+      DEBUG_PRINTLN("Connected to saved network!");
+      return true;
+    }
+  }
+  
+  DEBUG_PRINTLN("No saved networks worked");
+  return false;
+}
+
+bool connectToModem() {
+  DEBUG_PRINTLN("Trying modem network...");
+  
+  buildConnectingText("Powering modem...");
+  
+  // Power on the modem
+  digitalWrite(LTE_MOSFET_PIN, HIGH);
+  modemPoweredOn = true;
+  DEBUG_PRINTLN("Modem powered on");
+  
+  // Wait for modem to boot
+  for (int waitTime = 0; waitTime < 10000; waitTime += 100) {
+    if (waitTime % 1000 == 0) {
+      int secondsLeft = 10 - (waitTime/1000);
+      display.setCursor(0, 55);
+      display.print("Waiting for modem ");
+      display.print(secondsLeft);
+      display.print("s   ");
+      drawBatteryIcon(0, display.height() - 15);
+      display.display();
+    }
+    delay(100);
+  }
+  
+  return tryConnect(MODEM_SSID, MODEM_PASSWORD);
+}
+
+// =====================================================
+// ================= RADIO FUNCTIONS ===================
+// =====================================================
+
+void startRadio() {
+  DEBUG_PRINTLN("Starting radio...");
+  
+  // Turn off AP mode when entering radio mode
+  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    DEBUG_PRINTLN("AP mode disabled");
+  }
+  
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(12);
+  audio.connecttohost(stations[currentStation]);
+  
+  currentMode = MODE_RADIO;
+  currentDisplay = DISPLAY_STATION;
+  drawRadioScreen();
+}
+
+void switchStation(int dir) {
+  currentStation += dir;
+  if (currentStation < 0) currentStation = stationCount - 1;
+  if (currentStation >= stationCount) currentStation = 0;
+  
+  audio.stopSong();
+  delay(200);
+  audio.connecttohost(stations[currentStation]);
+  
+  if (currentDisplay == DISPLAY_STATION) {
+    drawRadioScreen();
+  } else {
+    drawWifiInfoScreen();
+  }
+}
+
+// =====================================================
+// ================= BUTTON HANDLING ===================
+// =====================================================
+
+void handleButtons() {
+  if (millis() - lastButtonPress < debounceTime) return;
+  
+  if (currentMode == MODE_RADIO) {
+    // Radio mode buttons
+    if (!digitalRead(BTN_UP)) {
+      currentDisplay = (currentDisplay == DISPLAY_STATION) ? 
+                        DISPLAY_WIFI_INFO : DISPLAY_STATION;
+      if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
+      else drawWifiInfoScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_DOWN)) {
+      currentDisplay = (currentDisplay == DISPLAY_STATION) ? 
+                        DISPLAY_WIFI_INFO : DISPLAY_STATION;
+      if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
+      else drawWifiInfoScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_LEFT)) {
+      switchStation(-1);
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_RIGHT)) {
+      switchStation(1);
+      lastButtonPress = millis();
+    }
+    
+    // Refresh button in radio mode - force update info screen
+    if (!digitalRead(BTN_REFRESH)) {
+      DEBUG_PRINTLN("Refresh button pressed - updating display");
+      if (currentDisplay == DISPLAY_STATION) {
+        drawRadioScreen();
+      } else {
+        drawWifiInfoScreen();
+        if (!refreshHeld) {
+          refreshHeld = true;
+          refreshPressTime = millis();
+        } else if (millis() - refreshPressTime > 3000) {
+          currentMode = MODE_MANAGE_NETWORKS;
+        } else if (millis() - refreshPressTime > 5000) {
+          ESP.restart();
+        }
+      }
+      lastButtonPress = millis();
+    } else {
+      refreshHeld = false;
+    }
+  }
+  
+  if (currentMode == MODE_MANAGE_NETWORKS) {
+    // Network management mode buttons
+    if (!digitalRead(BTN_UP) && selectedNetworkIndex > 0) {
+      selectedNetworkIndex--;
+      scrollOffset = 0;
+      drawNetworkListScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_DOWN) && selectedNetworkIndex < savedCount - 1) {
+      selectedNetworkIndex++;
+      scrollOffset = 0;
+      drawNetworkListScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_LEFT) && savedCount > 0) {
+      // Delete selected network
+      deleteNetwork(selectedNetworkIndex);
+      drawNetworkListScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_RIGHT)) {
+      // Clear all networks
+      clearAllNetworks();
+      drawNetworkListScreen();
+      lastButtonPress = millis();
+    }
+    
+    // Refresh button in network management - exit to setup
+    if (!digitalRead(BTN_REFRESH)) {
+      currentMode = MODE_SETUP;
+      scrollOffset = 0;
+      buildSetupText();
+      drawSetupScreen();
+      lastButtonPress = millis();
+    }
+  }
+  
+  if (currentMode == MODE_SETUP) {
+    // Refresh button in setup mode - long press to restart
+    if (!digitalRead(BTN_REFRESH)) {
+      if (!refreshHeld) {
+        refreshHeld = true;
+        refreshPressTime = millis();
+      } else if (millis() - refreshPressTime > 3000) {
+        currentMode = MODE_MANAGE_NETWORKS;
+      } else if (millis() - refreshPressTime > 5000) {
+        ESP.restart();
+      }
+    } else {
+      refreshHeld = false;
+    }
+    
+    // Up/down for scrolling
+    if (!digitalRead(BTN_UP) && scrollOffset > 0) {
+      scrollOffset--;
+      drawSetupScreen();
+      lastButtonPress = millis();
+    }
+    
+    if (!digitalRead(BTN_DOWN) && scrollOffset < totalLines - maxVisibleLines) {
+      scrollOffset++;
+      drawSetupScreen();
+      lastButtonPress = millis();
+    }
+  }
+}
+
+// =====================================================
+// ================= VOLUME CONTROL ====================
+// =====================================================
+
+void handleVolume() {
+  if (currentMode != MODE_RADIO) return;
+  
+  static int lastVol = -1;
+  
+  int raw = analogRead(POT_PIN);
+  int vol = map(raw, 0, 4095, 0, 21);
+  
+  if (vol != lastVol) {
+    audio.setVolume(vol);
+    lastVol = vol;
+    
+    if (currentDisplay == DISPLAY_STATION) {
+      drawRadioScreen();
+    } else {
+      drawWifiInfoScreen();
+    }
+  }
+}
+
+// =====================================================
+// ================= CAPTIVE PORTAL HANDLERS ===========
+// =====================================================
+
+void handleRoot() {
+  DEBUG_PRINTLN("Serving root page");
+  server.send(200, "text/html", htmlPage);
+}
+
+void handleSave() {
+  DEBUG_PRINTLN("Processing save request");
+  
+  if (server.hasArg("ssid")) {
+    String ssid = server.arg("ssid");
+    String password = server.arg("password");
+    
+    DEBUG_PRINTF("Saving: %s\n", ssid.c_str());
+    
+    // Save the network
+    saveNetwork(ssid, password);
+    
+    // Send minimal response
+    server.send(200, "text/html", 
+                "<html><body style='background:#1a1a1a;color:white;text-align:center;padding:50px;'>"
+                "<h2>WiFi Saved!</h2><p>Radio is connecting...</p></body></html>");
+    
+    // Try to connect
+    if (tryConnect(ssid.c_str(), password.c_str())) {
+      startRadio();
+    } else {
+      // Stay in setup mode
+      buildConnectingText("Connection failed");
+      delay(2000);
+      drawSetupScreen();
+    }
+  } else {
+    server.send(400, "text/html", "Missing SSID");
+  }
+}
+
+void handleManage() {
+  DEBUG_PRINTLN("Serving manage page");
+  
+  String page = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
+  page += "<style>body{font-family:Arial;text-align:center;padding:20px;background:#1a1a1a;color:white;}</style>";
+  page += "</head><body>";
+  page += "<h1>Saved Networks</h1>";
+  
+  if (savedCount == 0) {
+    page += "<p>No networks saved</p>";
+  } else {
+    page += "<ul style='list-style:none;padding:0;text-align:left;'>";
+    for (int i = 0; i < savedCount; i++) {
+      page += "<li style='padding:10px;margin:5px;background:#333;border-radius:5px;'>";
+      page += savedSSIDs[i];
+      page += "</li>";
+    }
+    page += "</ul>";
+  }
+  
+  page += "<p><a href='/clear' style='color:#f44336;'>Clear All Networks</a></p>";
+  page += "<p><a href='/'>Back to Setup</a></p>";
+  page += "</body></html>";
+  
+  server.send(200, "text/html", page);
+}
+
+void handleClear() {
+  DEBUG_PRINTLN("Clearing all networks");
+  clearAllNetworks();
+  server.sendHeader("Location", "/manage");
+  server.send(302, "text/plain", "");
+}
+
+void handleNotFound() {
+  // Only redirect GET requests, not POST
+  if (server.method() == HTTP_GET) {
+    server.sendHeader("Location", String("http://") + apIP.toString(), true);
+    server.send(302, "text/plain", "");
+  } else {
+    server.send(404, "text/plain", "Not Found");
+  }
+}
+
+// =====================================================
+// ================= SETUP MODE INIT ===================
+// =====================================================
+
+void enterSetupMode() {
+  DEBUG_PRINTLN("Entering setup mode");
+  
+  currentMode = MODE_SETUP;
+  scrollOffset = 0;
+  buildSetupText();
+  drawSetupScreen();
+  
+  // Configure WiFi AP mode
+  WiFi.setSleep(false);
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(apIP, apIP, netMask);
+  WiFi.softAP(AP_SSID);
+  
+  // Start DNS and web servers
+  dnsServer.start(53, "*", apIP);
+  dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+  
+  server.on("/", handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/manage", handleManage);
+  server.on("/clear", handleClear);
+  server.onNotFound(handleNotFound);
+  
+  server.begin();
+  
+  // Load saved networks
+  loadSavedNetworks();
+}
+
+// =====================================================
+// ================= SETUP =============================
+// =====================================================
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  DEBUG_PRINTLN("\n\n=== HITSLASH RADIO ===\n");
+  
+  // Initialize I2C for battery monitor
+  Wire.begin();
+  
+  // Initialize pins
+  pinMode(BTN_UP, INPUT_PULLUP);
+  pinMode(BTN_DOWN, INPUT_PULLUP);
+  pinMode(BTN_REFRESH, INPUT_PULLUP);
+  pinMode(BTN_LEFT, INPUT_PULLUP);
+  pinMode(BTN_RIGHT, INPUT_PULLUP);
+  
+  pinMode(LTE_MOSFET_PIN, OUTPUT);
+  digitalWrite(LTE_MOSFET_PIN, LOW); // Start with modem off
+  modemPoweredOn = false;
+  
+  // Initialize display
+  pinMode(OLED_RESET, OUTPUT);
+  digitalWrite(OLED_RESET, LOW);
+  delay(10);
+  digitalWrite(OLED_RESET, HIGH);
+  delay(100);
+  
+  display.begin(0, true);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SH110X_WHITE);
+  display.setCursor(0, 0);
+  display.println("HITSLASH RADIO");
+  display.println("Booting...");
+  display.display();
+  delay(1000);
+  
+  // Initialize battery monitor
+  initBattery();
+  
+  // Check for forced setup mode
+  bool setupModeForced = !digitalRead(BTN_REFRESH);
+  
+  if (setupModeForced) {
+    DEBUG_PRINTLN("Forced setup mode");
+    enterSetupMode();
+    return;
+  }
+  
+  // Normal boot sequence
+  DEBUG_PRINTLN("Normal boot sequence");
+  
+  // Load saved networks
+  loadSavedNetworks();
+  
+  // Try saved networks first
+  if (connectToSavedNetworks()) {
+    startRadio();
+    return;
+  }
+  
+  // If no saved networks or all failed, try modem
+  DEBUG_PRINTLN("Saved networks failed, trying modem...");
+  if (connectToModem()) {
+    startRadio();
+    return;
+  }
+  
+  // If modem also fails, enter setup mode
+  DEBUG_PRINTLN("All connections failed - entering setup");
+  buildConnectingText("Connection failed");
+  delay(2000);
+  enterSetupMode();
+}
+
+// =====================================================
+// ================= LOOP ==============================
+// =====================================================
+
+void loop() {
+  static unsigned long loopCount = 0;
+  loopCount++;
+  
+  if (loopCount % 10000 == 0) {
+    DEBUG_PRINTF("Loop: %lu, Mode: %d, Modem: %s\n", 
+                 loopCount, currentMode, modemPoweredOn ? "ON" : "OFF");
+  }
+  
+  // Update battery reading
+  updateBattery();
+  
+  if (currentMode == MODE_SETUP) {
+    dnsServer.processNextRequest();
+    server.handleClient();
+    handleButtons(); // Handle setup mode buttons
+  }
+  
+  if (currentMode == MODE_RADIO) {
+    audio.loop();
+    
+    if (!audio.isRunning() && millis() - lastReconnect > 5000) {
+      DEBUG_PRINTLN("Audio stopped - reconnecting");
+      audio.connecttohost(stations[currentStation]);
+      lastReconnect = millis();
+    }
+    
+    handleButtons();
+    handleVolume();
+    if (millis() - lastStatusUpdate > 2000) {
+      if (currentDisplay == DISPLAY_STATION)
+        drawRadioScreen();
+      else
+        drawWifiInfoScreen();
+
+      lastStatusUpdate = millis();
+    }
+  }
+  
+  if (currentMode == MODE_MANAGE_NETWORKS) {
+    handleButtons();
+  }
+  
+  delay(10);
+}
+
+// =====================================================
+// ================= AUDIO CALLBACKS ===================
+// =====================================================
+
+void audio_info(const char *info) { 
+  DEBUG_PRINT("audio_info: "); 
+  DEBUG_PRINTLN(info); 
+}
+
+void audio_showstation(const char *info) { 
+  DEBUG_PRINT("station: "); 
+  DEBUG_PRINTLN(info); 
+}
+
+void audio_showstreamtitle(const char *info) { 
+  DEBUG_PRINT("streamtitle: "); 
+  DEBUG_PRINTLN(info); 
+}
+
+void audio_bitrate(const char *info) {
+  DEBUG_PRINT("bitrate: "); 
+  DEBUG_PRINTLN(info);
+}
