@@ -81,6 +81,7 @@ unsigned long refreshPressTime = 0;
 // =====================================================
 
 #define LTE_MOSFET_PIN 15
+#define SPEAKER_MOSFET_PIN 16
 #define MODEM_SSID "hitslash-router"
 #define MODEM_PASSWORD "hitslashradio"
 bool modemPoweredOn = false;
@@ -226,10 +227,15 @@ unsigned long lastReconnect = 0;
 enum DisplayMode {
   DISPLAY_STATION,
   DISPLAY_WIFI_INFO,
+  DISPLAY_SPEAKER_CTRL,
   DISPLAY_NETWORK_LIST
 };
 
 DisplayMode currentDisplay = DISPLAY_STATION;
+bool speakerEnabled = true;
+int maxVolumeSpeakerOn = 10;
+int maxVolumeSpeakerOff = 21;
+int lastMaxVolume = 21;
 unsigned long lastButtonPress = 0;
 const unsigned long debounceTime = 200;
 
@@ -483,7 +489,7 @@ void drawRadioScreen() {
   display.setCursor(0, 80);
   display.print("L/R: Station");
   display.setCursor(0, 92);
-  display.print("U/D: Info");
+  display.print("U/D: Cycle screens");
   
   // Draw battery in bottom left
   drawBatteryIcon(0, display.height() - 15);
@@ -684,6 +690,36 @@ void switchStation(int dir) {
 }
 
 // =====================================================
+// =============== SPEAKER CONTROL UI ==================
+// =====================================================
+
+void drawSpeakerControlScreen() {
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 10);
+  display.println("Speaker");
+
+  display.setTextSize(2);
+  display.setCursor(0, 40);
+  if (speakerEnabled) {
+    display.print("[ ON  ]");
+  } else {
+    display.print("[ OFF ]");
+  }
+
+  display.setTextSize(1);
+  display.setCursor(0, 80);
+  display.print("L: Off   R: On");
+  display.setCursor(0, 92);
+  display.print("U/D: Cycle screens");
+
+  // Draw battery in bottom left
+  drawBatteryIcon(0, display.height() - 15);
+
+  display.display();
+}
+
+// =====================================================
 // ================= BUTTON HANDLING ===================
 // =====================================================
 
@@ -693,37 +729,78 @@ void handleButtons() {
   if (currentMode == MODE_RADIO) {
     // Radio mode buttons
     if (!digitalRead(BTN_UP)) {
-      currentDisplay = (currentDisplay == DISPLAY_STATION) ? 
-                        DISPLAY_WIFI_INFO : DISPLAY_STATION;
-      if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
-      else drawWifiInfoScreen();
+      if (currentDisplay == DISPLAY_STATION) {
+        currentDisplay = DISPLAY_WIFI_INFO;
+        drawWifiInfoScreen();
+      } else if (currentDisplay == DISPLAY_WIFI_INFO) {
+        currentDisplay = DISPLAY_STATION;
+        drawRadioScreen();
+      } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
+        currentDisplay = DISPLAY_STATION;
+        drawRadioScreen();
+      }
       lastButtonPress = millis();
     }
-    
+
+    static bool downWasPressed = false;
     if (!digitalRead(BTN_DOWN)) {
-      currentDisplay = (currentDisplay == DISPLAY_STATION) ? 
-                        DISPLAY_WIFI_INFO : DISPLAY_STATION;
-      if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
-      else drawWifiInfoScreen();
-      lastButtonPress = millis();
+      if (!downWasPressed) {
+        downWasPressed = true;
+        if (currentDisplay == DISPLAY_STATION) {
+          currentDisplay = DISPLAY_SPEAKER_CTRL;
+          drawSpeakerControlScreen();
+        } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
+          currentDisplay = DISPLAY_WIFI_INFO;
+          drawWifiInfoScreen();
+        } else if (currentDisplay == DISPLAY_WIFI_INFO) {
+          currentDisplay = DISPLAY_STATION;
+          drawRadioScreen();
+        }
+        lastButtonPress = millis();
+      }
+    } else {
+      downWasPressed = false;
     }
-    
+
     if (!digitalRead(BTN_LEFT)) {
-      switchStation(-1);
-      lastButtonPress = millis();
+      if (currentDisplay == DISPLAY_STATION || currentDisplay == DISPLAY_WIFI_INFO) {
+        switchStation(-1);
+        lastButtonPress = millis();
+      } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
+        // Toggle speaker off
+        speakerEnabled = false;
+        digitalWrite(SPEAKER_MOSFET_PIN, LOW);
+        // Restore max volume
+        lastMaxVolume = maxVolumeSpeakerOff;
+        drawSpeakerControlScreen();
+        lastButtonPress = millis();
+      }
     }
-    
+
     if (!digitalRead(BTN_RIGHT)) {
-      switchStation(1);
-      lastButtonPress = millis();
+      if (currentDisplay == DISPLAY_STATION || currentDisplay == DISPLAY_WIFI_INFO) {
+        switchStation(1);
+        lastButtonPress = millis();
+      } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
+        // Toggle speaker on
+        speakerEnabled = true;
+        digitalWrite(SPEAKER_MOSFET_PIN, HIGH);
+        // If volume is above 10, set to 10
+        if (audio.getVolume() > maxVolumeSpeakerOn) {
+          audio.setVolume(maxVolumeSpeakerOn);
+        }
+        lastMaxVolume = maxVolumeSpeakerOn;
+        drawSpeakerControlScreen();
+        lastButtonPress = millis();
+      }
     }
-    
+
     // Refresh button in radio mode - force update info screen
     if (!digitalRead(BTN_REFRESH)) {
       DEBUG_PRINTLN("Refresh button pressed - updating display");
       if (currentDisplay == DISPLAY_STATION) {
         drawRadioScreen();
-      } else {
+      } else if (currentDisplay == DISPLAY_WIFI_INFO) {
         drawWifiInfoScreen();
         if (!refreshHeld) {
           refreshHeld = true;
@@ -732,6 +809,8 @@ void handleButtons() {
           currentMode = MODE_MANAGE_NETWORKS;
           scrollOffset = 0;
         }
+      } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
+        drawSpeakerControlScreen();
       }
       lastButtonPress = millis();
     } else {
@@ -817,17 +896,23 @@ void handleVolume() {
   static int lastVol = -1;
   
   int raw = analogRead(POT_PIN);
-  int vol = map(raw, 0, 4095, 0, 21);
-  
+  int maxVol = speakerEnabled ? maxVolumeSpeakerOn : maxVolumeSpeakerOff;
+  int vol = map(raw, 0, 4095, 0, maxVol);
+  // If speaker just enabled, force volume to 10 if above
+  if (speakerEnabled && audio.getVolume() > maxVolumeSpeakerOn) {
+    vol = maxVolumeSpeakerOn;
+    audio.setVolume(vol);
+    lastVol = vol;
+  }
   if (vol != lastVol) {
     audio.setVolume(vol);
     lastVol = vol;
-    
     if (currentDisplay == DISPLAY_STATION) {
       drawRadioScreen();
-    } else {
+    } else if (currentDisplay == DISPLAY_WIFI_INFO) {
       drawWifiInfoScreen();
     }
+    // Do not redraw if on speaker control or other screens
   }
 }
 
@@ -970,7 +1055,10 @@ void setup() {
   pinMode(BTN_RIGHT, INPUT_PULLUP);
   
   pinMode(LTE_MOSFET_PIN, OUTPUT);
+  pinMode(SPEAKER_MOSFET_PIN, OUTPUT);
   digitalWrite(LTE_MOSFET_PIN, LOW); // Start with modem off
+  speakerEnabled = true;
+  digitalWrite(SPEAKER_MOSFET_PIN, HIGH); // Start with speakers enabled
   modemPoweredOn = false;
   
   // Initialize display
@@ -1063,12 +1151,14 @@ void loop() {
     handleButtons();
     handleVolume();
     if (millis() - lastStatusUpdate > 2000) {
-      if (currentDisplay == DISPLAY_STATION)
+      if (currentDisplay == DISPLAY_STATION) {
         drawRadioScreen();
-      else
+        lastStatusUpdate = millis();
+      } else if (currentDisplay == DISPLAY_WIFI_INFO) {
         drawWifiInfoScreen();
-
-      lastStatusUpdate = millis();
+        lastStatusUpdate = millis();
+      }
+      // Do not refresh display if on speaker control or other screens
     }
   }
   
