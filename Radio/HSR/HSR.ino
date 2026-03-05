@@ -994,8 +994,16 @@ void parseMajorOrder(JsonDocument &doc) {
   int index = 0;
   for (JsonObject task : tasks) {
     if (index >= MAX_OBJECTIVES) break;
-    int target = task["values"][0] | 0;
     int current = progress[index] | 0;
+    int target = 0;
+    // Loop through values to find the largest value greater than progress (likely the target)
+    JsonArray values = task["values"];
+    for (JsonVariant v : values) {
+      int val = v.as<int>();
+      if (val >= current && val > target) {
+        target = val;
+      }
+    }
     objectiveTarget[index] = target;
     objectiveProgress[index] = current;
     objectiveText[index] = "Objective " + String(index + 1);
