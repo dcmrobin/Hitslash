@@ -1004,6 +1004,11 @@ void parseMajorOrder(JsonDocument &doc) {
         target = val;
       }
     }
+    if (current == 0) {
+      target = 0;
+    } else if (current == 1) {
+      target = 1;
+    }
     objectiveTarget[index] = target;
     objectiveProgress[index] = current;
     objectiveText[index] = "Objective " + String(index + 1);
