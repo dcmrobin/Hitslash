@@ -26,7 +26,7 @@ void setup() {
   pinMode(SPEAKER_MOSFET_PIN, OUTPUT);
   digitalWrite(LTE_MOSFET_PIN, LOW); // Start with modem off
   speakerEnabled = true;
-  digitalWrite(SPEAKER_MOSFET_PIN, HIGH); // Start with speakers enabled
+  digitalWrite(SPEAKER_MOSFET_PIN, LOW); // Start with speakers enabled
   modemPoweredOn = false;
   
   // Initialize display

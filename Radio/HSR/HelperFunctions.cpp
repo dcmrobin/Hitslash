@@ -73,7 +73,7 @@ void handleButtons() {
       } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
         // Toggle speaker off
         speakerEnabled = false;
-        digitalWrite(SPEAKER_MOSFET_PIN, LOW);
+        digitalWrite(SPEAKER_MOSFET_PIN, HIGH);
         // Restore max volume
         lastMaxVolume = maxVolumeSpeakerOff;
         drawSpeakerControlScreen();
@@ -88,7 +88,7 @@ void handleButtons() {
       } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
         // Toggle speaker on
         speakerEnabled = true;
-        digitalWrite(SPEAKER_MOSFET_PIN, HIGH);
+        digitalWrite(SPEAKER_MOSFET_PIN, LOW);
         // If volume is above 10, set to 10
         if (audio.getVolume() > maxVolumeSpeakerOn) {
           audio.setVolume(maxVolumeSpeakerOn);
