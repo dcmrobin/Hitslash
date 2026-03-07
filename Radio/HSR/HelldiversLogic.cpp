@@ -96,7 +96,14 @@ void registerSequence(int btn) {
     }
 
     if (match) {
-
+      display.clearDisplay();
+      display.setCursor(20, 30);
+      display.print("HELLDIVERS 2");
+      display.setCursor(20, 40);
+      display.print("WAR TERMINAL");
+      display.setCursor(20, 60);
+      display.print("Recieving data...");
+      display.display();
       currentMode = MODE_HELLDIVERS;
       hdScrollOffset = 0;
 
@@ -215,23 +222,34 @@ void checkSecretSequence() {
 
 void parseMajorOrder(JsonDocument &doc) {
   objectiveCount = 0;
-  // Defensive: check structure
-  if (!doc[0].containsKey("setting")) {
-    majorOrderTitle = "No Data";
-    majorOrderBrief = "Major Order data missing.";
+  // Find the assignment with overrideTitle == "MAJOR ORDER"
+  int foundIndex = -1;
+  for (size_t i = 0; i < doc.size(); i++) {
+    if (doc[i].containsKey("setting") && doc[i]["setting"].containsKey("overrideTitle")) {
+      String title = doc[i]["setting"]["overrideTitle"].as<String>();
+      if (title == "MAJOR ORDER") {
+        foundIndex = i;
+        break;
+      }
+    }
+  }
+  if (foundIndex == -1) {
+    majorOrderTitle = "No Major Order";
+    majorOrderBrief = "Could not find Major Order assignment.";
     rewardText = "";
     return;
   }
-  majorOrderTitle = doc[0]["setting"]["overrideTitle"].as<String>();
-  majorOrderBrief = doc[0]["setting"]["overrideBrief"].as<String>();
-  int rewardAmount = doc[0]["setting"]["reward"]["amount"] | 0;
+  JsonObject order = doc[foundIndex];
+  majorOrderTitle = order["setting"]["overrideTitle"].as<String>();
+  majorOrderBrief = order["setting"]["overrideBrief"].as<String>();
+  int rewardAmount = order["setting"]["reward"]["amount"] | 0;
   rewardText = "Reward: " + String(rewardAmount) + " Medals";
-  if (!doc[0]["setting"].containsKey("tasks") || !doc[0].containsKey("progress")) {
+  if (!order["setting"].containsKey("tasks") || !order.containsKey("progress")) {
     objectiveCount = 0;
     return;
   }
-  JsonArray tasks = doc[0]["setting"]["tasks"];
-  JsonArray progress = doc[0]["progress"];
+  JsonArray tasks = order["setting"]["tasks"];
+  JsonArray progress = order["progress"];
   int index = 0;
   for (JsonObject task : tasks) {
     if (index >= MAX_OBJECTIVES) break;
