@@ -29,6 +29,7 @@ const unsigned long secretDebounceTime = 120; // ms
 String hdTitle = "";
 String hdBrief = "";
 String hdTask = "";
+String newsItems[MAX_NEWS_ITEMS] = {};
 int hdProgress = 0;
 long hdExpires = 0;
 unsigned long lastHDUpdate = 0;
@@ -80,6 +81,30 @@ void fetchMajorOrder(bool force) {
   http.end();
 }
 
+void fetchNews(bool force) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  if (!force && millis() - lastHDUpdate < hdUpdateInterval)
+    return;
+
+  lastHDUpdate = millis();
+
+  HTTPClient http;
+  http.begin("https://api.helldivers2.dev/raw/api/NewsFeed/801");
+  http.addHeader("X-Super-Client", "HitslashRadio");
+  http.addHeader("X-Super-Contact", "dcm.robin@gmail.com");
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    StaticJsonDocument<4096> doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err) {
+      parseNews(doc);
+    }
+  }
+  http.end();
+}
+
 void registerSequence(int btn) {
 
   inputSequence[seqIndex++] = btn;
@@ -97,17 +122,19 @@ void registerSequence(int btn) {
 
     if (match) {
       display.clearDisplay();
-      display.setCursor(20, 30);
+      display.setCursor(17, 30);
       display.print("HELLDIVERS 2");
-      display.setCursor(20, 40);
+      display.setCursor(17, 40);
       display.print("WAR TERMINAL");
-      display.setCursor(20, 60);
+      display.setCursor(10, 60);
       display.print("Recieving data...");
       display.display();
       currentMode = MODE_HELLDIVERS;
+      currentDisplay = DISPLAY_MAJOR_ORDER;
       hdScrollOffset = 0;
 
       fetchMajorOrder(true);
+      fetchNews(true);
       drawHelldiversMajorOrder();
     }
 
@@ -121,6 +148,8 @@ void handleHelldiversButtons() {
 
   static bool downWasPressed = false;
   static bool upWasPressed = false;
+  static bool leftWasPressed = false;
+  static bool rightWasPressed = false;
   static unsigned long lastScrollTime = 0;
   const unsigned long scrollRepeatDelay = 120; // ms
 
@@ -134,14 +163,20 @@ void handleHelldiversButtons() {
     // Exit if held long enough
     if (millis() - refreshPressStart > longPressTime) {
       currentMode = MODE_RADIO;
+      currentDisplay = DISPLAY_STATION;
       drawRadioScreen();
       refreshHeld = false;
       return;
     }
     // Controlled refresh while holding
     if (millis() - lastRefreshTrigger > refreshInterval) {
-      fetchMajorOrder(true);
-      drawHelldiversMajorOrder();
+      if (currentDisplay == DISPLAY_MAJOR_ORDER) {
+        fetchMajorOrder(true);
+        drawHelldiversMajorOrder();
+      } else if (currentDisplay == DISPLAY_NEWS) {
+        fetchNews(true);
+        drawHelldiversNews();
+      }
       lastRefreshTrigger = millis();
     }
   } else {
@@ -153,11 +188,15 @@ void handleHelldiversButtons() {
     if (!downWasPressed || millis() - lastScrollTime > scrollRepeatDelay) {
       hdScrollOffset -= 10;
       // Calculate minScroll based on contentHeight
-      int minScroll = -(contentHeight + 200);
+      int minScroll = -(contentHeight + 0);
       if (minScroll > 0) minScroll = 0;
       if (hdScrollOffset > 0) hdScrollOffset = 0;
       if (hdScrollOffset < minScroll) hdScrollOffset = minScroll;
-      drawHelldiversMajorOrder();
+      if (currentDisplay == DISPLAY_MAJOR_ORDER) {
+        drawHelldiversMajorOrder();
+      } else if (currentDisplay == DISPLAY_NEWS) {
+        drawHelldiversNews();
+      }
       lastScrollTime = millis();
     }
     downWasPressed = true;
@@ -169,16 +208,42 @@ void handleHelldiversButtons() {
   if (!digitalRead(BTN_UP)) {
     if (!upWasPressed || millis() - lastScrollTime > scrollRepeatDelay) {
       hdScrollOffset += 10;
-      int minScroll = -(contentHeight + 200);
+      int minScroll = -(contentHeight + 0);
       if (minScroll > 0) minScroll = 0;
       if (hdScrollOffset > 0) hdScrollOffset = 0;
       if (hdScrollOffset < minScroll) hdScrollOffset = minScroll;
-      drawHelldiversMajorOrder();
+      if (currentDisplay == DISPLAY_MAJOR_ORDER) {
+        drawHelldiversMajorOrder();
+      } else if (currentDisplay == DISPLAY_NEWS) {
+        drawHelldiversNews();
+      }
       lastScrollTime = millis();
     }
     upWasPressed = true;
   } else {
     upWasPressed = false;
+  }
+
+  if (!digitalRead(BTN_LEFT)) {
+    if (!leftWasPressed || millis() - lastScrollTime > scrollRepeatDelay) {
+      currentDisplay == DISPLAY_MAJOR_ORDER ? currentDisplay = DISPLAY_NEWS : currentDisplay = DISPLAY_MAJOR_ORDER;
+      hdScrollOffset = 0;
+      lastScrollTime = millis();
+    }
+    leftWasPressed = true;
+  } else {
+    leftWasPressed = false;
+  }
+  
+  if (!digitalRead(BTN_RIGHT)) {
+    if (!rightWasPressed || millis() - lastScrollTime > scrollRepeatDelay) {
+      currentDisplay == DISPLAY_MAJOR_ORDER ? currentDisplay = DISPLAY_NEWS : currentDisplay = DISPLAY_MAJOR_ORDER;
+      hdScrollOffset = 0;
+      lastScrollTime = millis();
+    }
+    rightWasPressed = true;
+  } else {
+    rightWasPressed = false;
   }
 }
 
@@ -274,4 +339,14 @@ void parseMajorOrder(JsonDocument &doc) {
     index++;
   }
   objectiveCount = index;
+}
+
+void parseNews(JsonDocument &doc) {
+  for (int i = MAX_NEWS_ITEMS; i > 0; i--) {
+    if (i < doc.size()) {
+      newsItems[i - 1] = doc[doc.size() - i - 1]["message"].as<String>();
+    } else {
+      newsItems[i - 1] = "No news available";
+    }
+  }
 }

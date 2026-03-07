@@ -137,7 +137,11 @@ void loop() {
 
   if (currentMode == MODE_HELLDIVERS) {
     audio.loop();
-    drawHelldiversMajorOrder();
+    if (currentDisplay == DISPLAY_MAJOR_ORDER) {
+      drawHelldiversMajorOrder();
+    } else if (currentDisplay == DISPLAY_NEWS) {
+      drawHelldiversNews();
+    }
     handleHelldiversButtons();
   }
   

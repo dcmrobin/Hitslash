@@ -188,41 +188,4 @@ void handleButtons() {
       lastButtonPress = millis();
     }
   }
-
-  if (currentMode == MODE_HELLDIVERS) {
-    if (!digitalRead(BTN_DOWN)) {
-
-      hdScrollOffset += 10;
-
-      if (hdScrollOffset > 80)
-        hdScrollOffset = 80;
-
-      drawHelldiversMajorOrder();
-    }
-
-    if (!digitalRead(BTN_UP)) {
-
-      hdScrollOffset -= 10;
-
-      if (hdScrollOffset < 0)
-        hdScrollOffset = 0;
-
-      drawHelldiversMajorOrder();
-    }
-
-    if (!digitalRead(BTN_REFRESH)) {
-
-      display.clearDisplay();
-      display.setCursor(0,20);
-      display.println("CONTACTING SUPER");
-      display.println("EARTH...");
-      display.display();
-
-      fetchMajorOrder(true);
-
-      hdScrollOffset = 0;
-
-      drawHelldiversMajorOrder();
-    }
-  }
 }

@@ -200,7 +200,7 @@ void drawHelldiversMajorOrder() {
   display.clearDisplay();
   int y = hdScrollOffset;
   display.setCursor(0, y);
-  display.println("HELLDIVERS 2 DATA");
+  display.println("HD2 WAR TERMINAL");
   y += 12;
   y = drawWrappedText(majorOrderTitle, 0, y, 128);
   y += 4;
@@ -222,7 +222,27 @@ void drawHelldiversMajorOrder() {
   y = drawWrappedText(rewardText, 0, y, 128);
   contentHeight = y;
   // Constrain hdScrollOffset so content stays in view
-  int minScroll = -(contentHeight + 200);
+  int minScroll = -(contentHeight + 0);
+  if (minScroll > 0) minScroll = 0;
+  hdScrollOffset = constrain(hdScrollOffset, minScroll, 0);
+  display.display();
+}
+
+void drawHelldiversNews() {
+  display.clearDisplay();
+  String totalNews = "";
+  int y = hdScrollOffset;
+  display.setCursor(0, y);
+  display.println("HD2 WAR TERMINAL");
+  y += 12;
+  for (int i = 0; i < MAX_NEWS_ITEMS; i++) {
+    totalNews += newsItems[i] + "\n\n";
+  }
+  totalNews += "\n\n\nEnd of most recent news.";
+  y = drawWrappedText(totalNews, 0, y, 128);
+  contentHeight = y*10;
+  // Constrain hdScrollOffset so content stays in view
+  int minScroll = -(contentHeight + 0);
   if (minScroll > 0) minScroll = 0;
   hdScrollOffset = constrain(hdScrollOffset, minScroll, 0);
   display.display();
@@ -232,23 +252,62 @@ int drawWrappedText(String text, int x, int y, int maxWidth) {
   int cursorX = x;
   int cursorY = y;
   String word = "";
+  bool inTag = false;
+
   for (int i = 0; i < text.length(); i++) {
     char c = text[i];
+
+    // Skip anything inside < >
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      continue;
+    }
+    if (inTag) continue;
+
+    // Handle newline
+    if (c == '\n') {
+      if (word.length() > 0) {
+        int wordWidth = word.length() * 6;
+        if (cursorX + wordWidth > maxWidth) {
+          cursorX = x;
+          cursorY += 10;
+        }
+        display.setCursor(cursorX, cursorY);
+        display.print(word);
+        word = "";
+      }
+
+      cursorX = x;
+      cursorY += 10;
+      continue;
+    }
+
+    // Word wrapping
     if (c == ' ' || i == text.length() - 1) {
-      if (i == text.length() - 1) word += c;
+      if (i == text.length() - 1 && c != ' ') word += c;
+
       int wordWidth = word.length() * 6;
+
       if (cursorX + wordWidth > maxWidth) {
         cursorX = x;
         cursorY += 10;
       }
+
       display.setCursor(cursorX, cursorY);
       display.print(word);
+
       cursorX += wordWidth + 6;
       word = "";
-    } else {
+    }
+    else {
       word += c;
     }
   }
+
   return cursorY + 10;
 }
 

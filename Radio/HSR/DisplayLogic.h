@@ -16,12 +16,14 @@ enum DisplayMode {
   DISPLAY_STATION,
   DISPLAY_WIFI_INFO,
   DISPLAY_SPEAKER_CTRL,
-  DISPLAY_NETWORK_LIST
+  DISPLAY_NETWORK_LIST,
+  DISPLAY_MAJOR_ORDER,
+  DISPLAY_NEWS
 };
 
 extern DisplayMode currentDisplay;
 
-#define MAX_LINES 70
+#define MAX_LINES 100
 extern String lines[MAX_LINES];
 extern int totalLines;
 extern int scrollOffset;
@@ -36,6 +38,7 @@ void drawWifiInfoScreen();
 void drawNetworkListScreen();
 void drawBatteryIcon(int x, int y);
 void drawHelldiversMajorOrder();
+void drawHelldiversNews();
 int drawWrappedText(String text, int x, int y, int maxWidth);
 void buildSetupText();
 void buildNetworkListText();
