@@ -1317,7 +1317,7 @@ void fetchLegoSetInfo() {
     return; 
   }
   
-  String key = "05abdd2d9e7bdec71642b546dd3fab4a";
+  String key = rebrickableKey;
   if (key.length() == 0) {
     itSetResult("Rebrickable API key not set.");
     return;
