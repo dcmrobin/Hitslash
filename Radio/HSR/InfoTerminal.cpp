@@ -260,6 +260,14 @@ static const char IT_HELP_TEXT[] =
   "LEGO SET INFO\n"
   "Input a set number\n"
   "to get data about it.\n\n"
+  "ESV BIBLE\n"
+  "Book chapter:verse ref.\n"
+  "e.g. JOHN 3 16\n"
+  "e.g. PSALM 23 1-6\n\n"
+  "ASK AI\n"
+  "Any short question.\n"
+  "Uses GPT-4o mini.\n"
+  "e.g. WHAT IS A QUASAR\n\n"
   "Hold REFRESH to close.";
 
 void drawInfoHelp() {
@@ -531,6 +539,8 @@ void buildInfoMenu() {
   ranked[IQ_WEATHER].score     += 5;
   ranked[IQ_HISTORY_TODAY].score += 3;
   ranked[IQ_RANDOM_FACT].score  += 1;
+  ranked[IQ_ESV_BIBLE].score   += 2;
+  ranked[IQ_OPENAI_ASK].score  += 4;
 
   // Bubble sort descending
   for (int i = 0; i < IQ_COUNT - 1; i++) {
@@ -579,6 +589,8 @@ void runInfoLookup(InfoQueryType qt) {
     case IQ_HISTORY_TODAY: fetchHistoryToday(); break;
     case IQ_RANDOM_FACT:  fetchRandomFact();   break;
     case IQ_LEGO_SET_INFO: fetchLegoSetInfo(); break;
+    case IQ_ESV_BIBLE:     fetchESVBible();    break;
+    case IQ_OPENAI_ASK:    fetchOpenAIAsk();   break;
     default: itSetResult("Not implemented."); break;
   }
 
@@ -1305,7 +1317,7 @@ void fetchLegoSetInfo() {
     return; 
   }
   
-  String key = rebrickableKey;
+  String key = "05abdd2d9e7bdec71642b546dd3fab4a";
   if (key.length() == 0) {
     itSetResult("Rebrickable API key not set.");
     return;
@@ -1361,6 +1373,90 @@ void fetchLegoSetInfo() {
     itSetResult(("API error: HTTP " + String(code)).c_str());
   }
   
+  http.end();
+}
+
+
+// ── ESV Bible ─────────────────────────────────────────────────────────────────
+void fetchESVBible() {
+  if (WiFi.status() != WL_CONNECTED) { itSetResult("No WiFi."); return; }
+
+  String ref = String(itQuery);
+  ref.trim();
+  ref.replace(" ", "+");
+
+  HTTPClient http;
+  String url = "https://api.esv.org/v3/passage/text/?q=" + ref
+             + "&include-headings=false"
+             + "&include-footnotes=false"
+             + "&include-verse-numbers=true"
+             + "&include-short-copyright=false"
+             + "&include-passage-references=true";
+  http.begin(url);
+  http.addHeader("Authorization", "Token " + String(ESV_API_KEY));
+  int code = http.GET();
+  if (code == 200) {
+    DynamicJsonDocument doc(4096);
+    deserializeJson(doc, http.getString());
+    String canonical = doc["canonical"].as<String>();
+    String passage   = doc["passages"][0].as<String>();
+    passage.trim();
+    itSetResult(("ESV: " + canonical + "\n\n" + passage).c_str());
+  } else if (code == 404) {
+    itSetResult("Passage not found.\nCheck reference format.\ne.g. JOHN 3:16");
+  } else {
+    itSetResult(("ESV API error: HTTP " + String(code)).c_str());
+  }
+  http.end();
+}
+
+// ── OpenAI Ask ────────────────────────────────────────────────────────────────
+void fetchOpenAIAsk() {
+  if (WiFi.status() != WL_CONNECTED) { itSetResult("No WiFi."); return; }
+
+  String question = String(itQuery);
+  question.trim();
+  if (question.length() == 0) {
+    itSetResult("No question entered.");
+    return;
+  }
+
+  // Escape any quotes in the question to keep JSON valid
+  question.replace("\"", "'");
+
+  String body = "{\"model\":\"gpt-4o-mini\","
+                "\"max_tokens\":120,"
+                "\"messages\":["
+                  "{\"role\":\"system\","
+                   "\"content\":\"You are a concise assistant on a tiny OLED screen. "
+                   "Reply in plain text, no markdown, 3 sentences maximum.\"},"
+                  "{\"role\":\"user\","
+                   "\"content\":\"" + question + "\"}"
+                "]}";
+
+  HTTPClient http;
+  http.begin("https://api.openai.com/v1/chat/completions");
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + String(OPENAI_API_KEY));
+  int code = http.POST(body);
+  if (code == 200) {
+    DynamicJsonDocument doc(2048);
+    deserializeJson(doc, http.getString());
+    String reply = doc["choices"][0]["message"]["content"].as<String>();
+    reply.trim();
+    itSetResult(("ASK AI\n\nQ: " + String(itQuery) + "\n\nA: " + reply).c_str());
+  } else {
+    DynamicJsonDocument edoc(512);
+    String err = http.getString();
+    if (!deserializeJson(edoc, err)) {
+      String msg = edoc["error"]["message"].as<String>();
+      if (msg.length() > 0) {
+        itSetResult(("AI error:\n" + msg.substring(0, 200)).c_str());
+        http.end(); return;
+      }
+    }
+    itSetResult(("AI error: HTTP " + String(code)).c_str());
+  }
   http.end();
 }
 
@@ -1496,7 +1592,9 @@ const char* queryTypeName(InfoQueryType qt) {
     case IQ_FLIGHT:       return "Flight Lookup";
     case IQ_HISTORY_TODAY:return "This Day in History";
     case IQ_RANDOM_FACT:  return "Random Fact";
-    case IQ_LEGO_SET_INFO:return "Lego Set Info";
+    case IQ_LEGO_SET_INFO: return "Lego Set Info";
+    case IQ_ESV_BIBLE:     return "ESV Bible";
+    case IQ_OPENAI_ASK:    return "Ask AI";
     default:              return "Unknown";
   }
 }

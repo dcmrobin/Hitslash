@@ -3,6 +3,11 @@
 
 #include "HelperFunctions.h"
 
+// ── API Keys (fill these in) ──────────────────────────────────────────────────
+#define AVIATION_API_KEY     ""   // https://aviationstack.com/signup/free  (free, no card)
+// VIN decoding uses NHTSA vPIC - completely free, no key needed
+// ESV Bible and OpenAI keys loaded from ApiKeys.h
+
 // ── Limits ────────────────────────────────────────────────────────────────────
 #define IT_MAX_QUERY      100   // max chars the user can type
 #define IT_MAX_RESULT_LEN 10000 // result display buffer
@@ -32,6 +37,8 @@ enum InfoQueryType {
   IQ_HISTORY_TODAY,
   IQ_RANDOM_FACT,
   IQ_LEGO_SET_INFO,
+  IQ_ESV_BIBLE,
+  IQ_OPENAI_ASK,
   IQ_COUNT  // always last
 };
 
@@ -85,6 +92,8 @@ void fetchFlight();
 void fetchHistoryToday();
 void fetchRandomFact();
 void fetchLegoSetInfo();
+void fetchESVBible();
+void fetchOpenAIAsk();
 
 // Helpers
 bool itLooksLikeIP(const char* s);
