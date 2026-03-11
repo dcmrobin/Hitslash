@@ -3,10 +3,6 @@
 
 #include "HelperFunctions.h"
 
-// ── API Keys (fill these in) ──────────────────────────────────────────────────
-#define AVIATION_API_KEY     ""   // https://aviationstack.com/signup/free  (free, no card)
-// VIN decoding uses NHTSA vPIC - completely free, no key needed
-
 // ── Limits ────────────────────────────────────────────────────────────────────
 #define IT_MAX_QUERY      100   // max chars the user can type
 #define IT_MAX_RESULT_LEN 10000 // result display buffer
