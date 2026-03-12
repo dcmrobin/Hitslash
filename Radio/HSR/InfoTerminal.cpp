@@ -16,7 +16,7 @@ int kbCol = 0;
 
 // ── Keyboard layout ───────────────────────────────────────────────────────────
 const char* kbLetters  = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const char* kbNumSym   = "0123456789.,'-@#/()!?&+ ";
+const char* kbNumSym   = "0123456789.,'-@#/()!?&+:*+=";
 // Row 2 actions rendered separately: SPACE  BKSP  ENTER  EXIT
 const char* kbActionLabels[] = { "SPC", "BKSP", "ENTR", "EXIT" };
 const int   kbActionCount    = 4;
@@ -262,8 +262,8 @@ static const char IT_HELP_TEXT[] =
   "to get data about it.\n\n"
   "ESV BIBLE\n"
   "Book chapter:verse ref.\n"
-  "e.g. JOHN 3 16\n"
-  "e.g. PSALM 23 1-6\n\n"
+  "e.g. JOHN 3:16\n"
+  "e.g. PSALM 23:1-6\n\n"
   "ASK AI\n"
   "Any short question.\n"
   "Uses GPT-4o mini.\n"

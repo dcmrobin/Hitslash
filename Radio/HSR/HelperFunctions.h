@@ -19,6 +19,7 @@
 #include "RadioAudioLogic.h"
 #include "InfoTerminal.h"
 #include "APIKeys.h"// haha no you can't have my keys
+#include "MP3Logic.h"
 
 // Debug macro - set to 1 to enable verbose debugging
 #define DEBUG 0
@@ -48,7 +49,8 @@ enum DeviceMode {
   MODE_CONNECTING,
   MODE_MANAGE_NETWORKS,
   MODE_HELLDIVERS,
-  MODE_INFO_TERMINAL
+  MODE_INFO_TERMINAL,
+  MODE_MP3
 };
 
 extern DeviceMode currentMode;

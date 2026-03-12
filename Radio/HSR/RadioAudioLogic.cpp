@@ -92,15 +92,15 @@ void startRadio() {
 }
 
 void switchStation(int dir) {
-  // Scrolling right past last station → Info Terminal
-  if (dir == 1 && currentStation == stationCount - 1) {
-    currentMode    = MODE_INFO_TERMINAL;
-    currentDisplay = DISPLAY_INFO_KEYBOARD;
+  // Scrolling right past last station -> MP3 Mode
+    if (dir == 1 && currentStation == stationCount - 1) {
+    currentMode    = MODE_MP3;
+    currentDisplay = DISPLAY_MP3;
     audio.stopSong();
-    enterInfoTerminal();
+    enterMP3Mode();
     return;
   }
-  // Scrolling left past first station → Info Terminal
+  // Scrolling left past first station -> Info Terminal
   if (dir == -1 && currentStation == 0) {
     currentMode    = MODE_INFO_TERMINAL;
     currentDisplay = DISPLAY_INFO_KEYBOARD;

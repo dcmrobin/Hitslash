@@ -47,6 +47,9 @@ void setup() {
   
   // Initialize battery monitor
   initBattery();
+
+  // Initialize MP3 player
+  initMP3Player();
   
   // Check for forced setup mode
   bool setupModeForced = !digitalRead(BTN_REFRESH);
@@ -145,7 +148,12 @@ void loop() {
   }
 
   if (currentMode == MODE_INFO_TERMINAL) {
+    audio.loop();
     handleInfoTerminalButtons();
+  }
+
+  if (currentMode == MODE_MP3) {
+    handleMP3Buttons();
   }
   
   delay(10);

@@ -21,7 +21,8 @@ enum DisplayMode {
   DISPLAY_NEWS,
   DISPLAY_INFO_KEYBOARD,
   DISPLAY_INFO_MENU,
-  DISPLAY_INFO_RESULT
+  DISPLAY_INFO_RESULT,
+  DISPLAY_MP3
 };
 
 extern DisplayMode currentDisplay;
