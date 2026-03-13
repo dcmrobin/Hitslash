@@ -153,6 +153,7 @@ void loop() {
   }
 
   if (currentMode == MODE_MP3) {
+    handleVolume();
     handleMP3Buttons();
   }
   

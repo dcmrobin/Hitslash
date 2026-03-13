@@ -47,28 +47,37 @@ void drawSpeakerControlScreen() {
 }
 
 void handleVolume() {
-  if (currentMode != MODE_RADIO) return;
-  
+  if (currentMode != MODE_RADIO && currentMode != MODE_MP3) return;
+
   static int lastVol = -1;
-  
+
   int raw = analogRead(POT_PIN);
-  int maxVol = speakerEnabled ? maxVolumeSpeakerOn : maxVolumeSpeakerOff;
-  int vol = map(raw, 0, 4095, 0, maxVol);
-  // If speaker just enabled, force volume to 10 if above
-  if (speakerEnabled && audio.getVolume() > maxVolumeSpeakerOn) {
-    vol = maxVolumeSpeakerOn;
-    audio.setVolume(vol);
-    lastVol = vol;
-  }
-  if (vol != lastVol) {
-    audio.setVolume(vol);
-    lastVol = vol;
-    if (currentDisplay == DISPLAY_STATION) {
-      drawRadioScreen();
-    } else if (currentDisplay == DISPLAY_WIFI_INFO) {
-      drawWifiInfoScreen();
+  
+  if (currentMode == MODE_RADIO) {
+    int maxVol = speakerEnabled ? maxVolumeSpeakerOn : maxVolumeSpeakerOff;
+    int vol = map(raw, 0, 4095, 0, maxVol);
+    if (speakerEnabled && audio.getVolume() > maxVolumeSpeakerOn) {
+      vol = maxVolumeSpeakerOn;
+      audio.setVolume(vol);
+      lastVol = vol;
     }
-    // Do not redraw if on speaker control or other screens
+    if (vol != lastVol) {
+      audio.setVolume(vol);
+      lastVol = vol;
+      if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
+      else if (currentDisplay == DISPLAY_WIFI_INFO) drawWifiInfoScreen();
+    }
+  }
+  
+  if (currentMode == MODE_MP3) {
+    // Speaker on: max 30, speaker off: max 30
+    // Just use full 0-30 range always, the speaker hardware limits itself
+    int maxVol = speakerEnabled ? 20 : 30;
+    int vol = map(raw, 0, 4095, 0, maxVol);
+    if (vol != lastVol) {
+      mp3SetVolume(vol);
+      lastVol = vol;
+    }
   }
 }
 

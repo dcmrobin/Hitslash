@@ -1,92 +1,145 @@
+// MP3Logic.cpp
 #include "MP3Logic.h"
 
-DFRobotDFPlayerMini dfPlayer;
-int mp3TrackCount   = 0;
-int mp3CurrentTrack = 1; // DFPlayer tracks are 1-indexed
-bool mp3Playing     = false;
-int mp3ListOffset   = 0;
-int mp3ListSelected = 0;
-unsigned long mp3TrackStart  = 0;
-unsigned long mp3TrackLength = 0;
-MP3Screen mp3Screen = MP3_LIST;
-
-// We can't read filenames from DFPlayer directly,
-// so we just label them by track number
+int mp3TrackCount    = 0;
+int mp3CurrentTrack  = 1;
+bool mp3Playing      = false;
+int mp3ListOffset    = 0;
+int mp3ListSelected  = 0;
+unsigned long mp3PausedAt    = 0;
+unsigned long mp3TotalPaused = 0;
+unsigned long mp3TrackStart = 0;
+MP3Screen mp3Screen  = MP3_LIST;
 char mp3TrackNames[MP3_MAX_TRACKS][MP3_MAX_NAME_LEN];
+
+// ── Raw UART command layer ────────────────────────────────────────────────────
+
+void mp3SendCommand(byte command, int param) {
+  byte packet[10];
+  int checkSum = -(0xFF + 0x06 + command + 0x00 + highByte(param) + lowByte(param));
+  packet[0] = 0x7E;
+  packet[1] = 0xFF;
+  packet[2] = 0x06;
+  packet[3] = command;
+  packet[4] = 0x00;        // no feedback - avoids blocking waits
+  packet[5] = highByte(param);
+  packet[6] = lowByte(param);
+  packet[7] = highByte(checkSum);
+  packet[8] = lowByte(checkSum);
+  packet[9] = 0xEF;
+  for (int i = 0; i < 10; i++) Serial1.write(packet[i]);
+  delay(100); // GT3200B needs this between commands
+}
+
+void mp3Play(int track)    { mp3SendCommand(0x03, track); }
+void mp3Pause()            { mp3SendCommand(0x0E, 0); }
+void mp3Resume()           { mp3SendCommand(0x0D, 0); }
+void mp3Stop()             { mp3SendCommand(0x16, 0); }
+void mp3SetVolume(int vol) { mp3SendCommand(0x06, vol); }
+void mp3Next()             { mp3SendCommand(0x01, 0); }
+void mp3Prev()             { mp3SendCommand(0x02, 0); }
+
+int mp3GetTrackCount() {
+  byte packet[10];
+  int checkSum = -(0xFF + 0x06 + 0x48 + 0x01 + 0x00 + 0x00);
+  packet[0] = 0x7E;
+  packet[1] = 0xFF;
+  packet[2] = 0x06;
+  packet[3] = 0x48;
+  packet[4] = 0x01; // request feedback for this query
+  packet[5] = 0x00;
+  packet[6] = 0x00;
+  packet[7] = highByte(checkSum);
+  packet[8] = lowByte(checkSum);
+  packet[9] = 0xEF;
+  for (int i = 0; i < 10; i++) Serial1.write(packet[i]);
+
+  // Wait for response with timeout
+  unsigned long start = millis();
+  while (millis() - start < 500) {
+    if (Serial1.available() >= 10) {
+      byte response[10];
+      for (int i = 0; i < 10; i++) response[i] = Serial1.read();
+      if (response[0] == 0x7E && response[9] == 0xEF) {
+        return (response[5] << 8) | response[6];
+      }
+    }
+  }
+  return 0; // timeout - no card or no tracks
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 void initMP3Player() {
   Serial1.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
-  delay(1000);
+  delay(2000); // GT3200B needs a longer boot delay
 
-  if (!dfPlayer.begin(Serial1)) {
-    DEBUG_PRINTLN("DFPlayer init failed - no card?");
-    mp3TrackCount = 0;
-    return;
-  }
+  mp3SetVolume(25);
+  delay(100);
 
-  dfPlayer.volume(15);
-  
-  mp3TrackCount = dfPlayer.readFileCounts();
+  mp3TrackCount = mp3GetTrackCount();
   if (mp3TrackCount < 0) mp3TrackCount = 0;
 
   for (int i = 0; i < mp3TrackCount && i < MP3_MAX_TRACKS; i++) {
     snprintf(mp3TrackNames[i], MP3_MAX_NAME_LEN, "Track %02d", i + 1);
   }
+
+  DEBUG_PRINTF("MP3 ready. Tracks: %d\n", mp3TrackCount);
 }
+
+// ── Entry point ───────────────────────────────────────────────────────────────
 
 void enterMP3Mode() {
   audio.stopSong();
-  currentMode    = MODE_MP3;
-  currentDisplay = DISPLAY_MP3;
-  mp3Screen      = MP3_LIST;
-  mp3ListOffset  = 0;
+  currentMode     = MODE_MP3;
+  currentDisplay  = DISPLAY_MP3;
+  mp3Screen       = MP3_LIST;
+  mp3ListOffset   = 0;
   mp3ListSelected = 0;
-  mp3Playing     = false;
-  dfPlayer.stop();
+  mp3Playing      = false;
+
+  // Only rescan if we didn't get tracks at boot
+  if (mp3TrackCount == 0) {
+    delay(500);
+    mp3TrackCount = mp3GetTrackCount();
+    if (mp3TrackCount < 0) mp3TrackCount = 0;
+    for (int i = 0; i < mp3TrackCount && i < MP3_MAX_TRACKS; i++) {
+      snprintf(mp3TrackNames[i], MP3_MAX_NAME_LEN, "Track %02d", i + 1);
+    }
+  }
+
+  mp3Stop();
   drawMP3ListScreen();
-  
-  // Wait for button release before handing control to MP3 button handler
+
   while (!digitalRead(BTN_LEFT) || !digitalRead(BTN_RIGHT)) delay(10);
-  delay(200); // extra debounce
+  delay(200);
 }
 
 // ── File list screen ──────────────────────────────────────────────────────────
+
 void drawMP3ListScreen() {
   display.clearDisplay();
   display.setTextSize(1);
 
   // Heading
   display.setCursor(0, 0);
-  display.println("MP3 PLAYER");
-  display.drawLine(0, 10, 128, 10, SH110X_WHITE);
-
-  // Track count
+  display.print("MP3 PLAYER");
   display.setCursor(90, 0);
   display.print(mp3TrackCount);
   display.print(" trk");
+  display.drawLine(0, 10, 128, 10, SH110X_WHITE);
 
-  // Visible tracks (leave room for heading and battery)
+  if (mp3TrackCount == 0) {
+    display.setCursor(0, 40);
+    display.println("No SD card or");
+    display.println("no tracks found.");
+    display.display();
+    return;
+  }
+
   const int listY      = 14;
   const int rowHeight  = 11;
   const int maxVisible = 8;
-
-  // Track time
-  //int elapsed = dfPlayer.readCurrentFileNumber() > 0 ? dfPlayer.readCurrentFileNumber() : 0;
-  //int total   = dfPlayer.readFileTotalDuration();
-  //int current = dfPlayer.readFileCurrentDuration();
-  //if (total < 0 || total > 3600) total = 0;
-  //if (current < 0 || current > total) current = 0;
-
-  //display.setCursor(0, 70);
-  //display.print(current / 60);
-  //display.print(":");
-  //if (current % 60 < 10) display.print("0");
-  //display.print(current % 60);
-  //display.print(" / ");
-  //display.print(total / 60);
-  //display.print(":");
-  //if (total % 60 < 10) display.print("0");
-  //display.println(total % 60);
 
   // Keep selected item in view
   if (mp3ListSelected < mp3ListOffset)
@@ -95,9 +148,9 @@ void drawMP3ListScreen() {
     mp3ListOffset = mp3ListSelected - maxVisible + 1;
 
   for (int i = 0; i < maxVisible; i++) {
-    int idx = mp3ListOffset + i;
+    int idx  = mp3ListOffset + i;
     if (idx >= mp3TrackCount) break;
-    int y   = listY + i * rowHeight;
+    int y    = listY + i * rowHeight;
     bool sel = (idx == mp3ListSelected);
 
     if (sel) {
@@ -109,20 +162,12 @@ void drawMP3ListScreen() {
     display.setTextColor(SH110X_WHITE);
   }
 
-  // Scrollbar hint if needed
+  // Scrollbar
   if (mp3TrackCount > maxVisible) {
-    int barH   = (maxVisible * 128) / mp3TrackCount;
-    int barY   = listY + (mp3ListOffset * 88) / mp3TrackCount;
+    int barH = (maxVisible * 88) / mp3TrackCount;
+    int barY = listY + (mp3ListOffset * 88) / mp3TrackCount;
     display.drawRect(125, listY, 3, 88, SH110X_WHITE);
     display.fillRect(125, barY, 3, barH, SH110X_WHITE);
-  }
-
-  if (mp3TrackCount == 0) {
-    display.setCursor(0, 40);
-    display.println("No SD card or");
-    display.println("no tracks found.");
-    display.display();
-    return;
   }
 
   drawBatteryIcon(0, display.height() - 15);
@@ -130,22 +175,22 @@ void drawMP3ListScreen() {
 }
 
 // ── Now playing screen ────────────────────────────────────────────────────────
+
 void drawMP3PlayScreen() {
   display.clearDisplay();
   display.setTextSize(1);
 
   // Heading
   display.setCursor(0, 0);
-  display.println("MP3 PLAYER");
+  display.print("MP3 PLAYER");
   display.drawLine(0, 10, 128, 10, SH110X_WHITE);
 
-  // Track name (large-ish)
-  display.setTextSize(1);
+  // Track name
   display.setCursor(0, 14);
   display.println(mp3TrackNames[mp3CurrentTrack - 1]);
 
   // Track number
-  display.setCursor(0, 28);
+  display.setCursor(0, 26);
   display.print("Track ");
   display.print(mp3CurrentTrack);
   display.print(" / ");
@@ -153,28 +198,25 @@ void drawMP3PlayScreen() {
 
   // Play/pause indicator
   display.setTextSize(2);
-  display.setCursor(54, 40);
-  if (mp3Playing) {
-    display.print("||"); // pause symbol
-  } else {
-    display.print(">"); // play symbol
-  }
+  display.setCursor(54, 38);
+  display.print(mp3Playing ? "||" : " >");
   display.setTextSize(1);
 
-  // Progress bar (time-based estimate)
-  unsigned long elapsed = mp3Playing ? (millis() - mp3TrackStart) : 0;
-  float percent = 0;
-  if (mp3TrackLength > 0) {
-    percent = constrain((float)elapsed / mp3TrackLength, 0.0, 1.0);
-  }
-  drawProgressBar(0, 70, 128, 8, percent);
+  // Elapsed time using millis() - no blocking UART reads
+  unsigned long elapsed = ((mp3Playing ? millis() : mp3PausedAt) - mp3TrackStart - mp3TotalPaused) / 1000;
+  display.setCursor(0, 62);
+  display.print(elapsed / 60);
+  display.print(":");
+  if (elapsed % 60 < 10) display.print("0");
+  display.print(elapsed % 60);
+  display.print(" elapsed");
 
   // Hints
-  display.setCursor(0, 82);
+  display.setCursor(0, 80);
   display.println("REF: pause/play");
-  display.setCursor(0, 92);
+  display.setCursor(0, 90);
   display.println("L/R: prev/next");
-  display.setCursor(0, 102);
+  display.setCursor(0, 100);
   display.println("Hold REF: back");
 
   drawBatteryIcon(0, display.height() - 15);
@@ -182,6 +224,7 @@ void drawMP3PlayScreen() {
 }
 
 // ── Button handler ────────────────────────────────────────────────────────────
+
 void handleMP3Buttons() {
   static bool upWas      = false;
   static bool downWas    = false;
@@ -190,6 +233,7 @@ void handleMP3Buttons() {
   static bool selWas     = false;
   static unsigned long selPressStart = 0;
   static unsigned long lastRepeat    = 0;
+  static unsigned long lastRedraw    = 0;
   const unsigned long repeatDelay    = 130;
 
   bool upNow    = !digitalRead(BTN_UP);
@@ -201,7 +245,6 @@ void handleMP3Buttons() {
   // ── LIST screen ────────────────────────────────────────────────────────────
   if (mp3Screen == MP3_LIST) {
 
-    // Scroll up
     if (upNow) {
       if (!upWas || millis() - lastRepeat > repeatDelay) {
         mp3ListSelected--;
@@ -211,7 +254,6 @@ void handleMP3Buttons() {
       }
     }
 
-    // Scroll down
     if (downNow) {
       if (!downWas || millis() - lastRepeat > repeatDelay) {
         mp3ListSelected++;
@@ -223,32 +265,36 @@ void handleMP3Buttons() {
 
     // Select track → play
     if (selNow && !selWas) {
-      mp3CurrentTrack = mp3ListSelected + 1; // 1-indexed
-      dfPlayer.play(mp3CurrentTrack);
-      mp3Playing     = true;
-      mp3TrackStart  = millis();
-      mp3TrackLength = 0; // unknown until DFPlayer reports it
-      mp3Screen      = MP3_PLAYING;
+      mp3CurrentTrack = mp3ListSelected + 1;
+      mp3SetVolume(25);
+      mp3Play(mp3CurrentTrack);
+      mp3Playing    = true;
+      mp3TrackStart = millis();
+      mp3PausedAt    = 0;
+      mp3TotalPaused = 0;
+      mp3Screen     = MP3_PLAYING;
       drawMP3PlayScreen();
     }
 
-    // LEFT → go back to last radio station
+    // LEFT → back to radio
     if (leftNow && !leftWas) {
-      dfPlayer.stop();
-      mp3Playing = false;
+      mp3Stop();
+      mp3Playing     = false;
       currentMode    = MODE_RADIO;
       currentDisplay = DISPLAY_STATION;
       audio.connecttohost(stations[currentStation]);
       drawRadioScreen();
+      return;
     }
 
     // RIGHT → Info Terminal
     if (rightNow && !rightWas) {
-      dfPlayer.stop();
-      mp3Playing = false;
+      mp3Stop();
+      mp3Playing     = false;
       currentMode    = MODE_INFO_TERMINAL;
       currentDisplay = DISPLAY_INFO_KEYBOARD;
       enterInfoTerminal();
+      return;
     }
   }
 
@@ -259,29 +305,28 @@ void handleMP3Buttons() {
     if (selNow) {
       if (!selWas) selPressStart = millis();
       if (millis() - selPressStart > 1500) {
-        mp3Screen = MP3_LIST;
+        mp3Screen  = MP3_LIST;
+        mp3Playing = false;
+        mp3Stop();
         drawMP3ListScreen();
-        // Wait for release
-        while (!digitalRead(BTN_REFRESH)) delay(10);
-        selWas = false;
+        selWas = true;
         return;
       }
     }
 
-    // Tap REFRESH → toggle pause/play
-    if (!selNow && selWas) {
-      // Only trigger on release, and only if it wasn't a long press
-      if (millis() - selPressStart < 1500) {
-        if (mp3Playing) {
-          dfPlayer.pause();
-          mp3Playing = false;
-        } else {
-          dfPlayer.start();
-          mp3Playing = true;
-          mp3TrackStart = millis(); // reset for progress estimate
-        }
-        drawMP3PlayScreen();
+    // Tap REFRESH → toggle pause/play on press
+    if (selNow && !selWas) {
+      selPressStart = millis();
+      if (mp3Playing) {
+        mp3Pause();
+        mp3Playing  = false;
+        mp3PausedAt = millis();
+      } else {
+        mp3Resume();
+        mp3TotalPaused += millis() - mp3PausedAt;
+        mp3Playing      = true;
       }
+      drawMP3PlayScreen();
     }
 
     // LEFT → previous track
@@ -289,9 +334,11 @@ void handleMP3Buttons() {
       mp3CurrentTrack--;
       if (mp3CurrentTrack < 1) mp3CurrentTrack = mp3TrackCount;
       mp3ListSelected = mp3CurrentTrack - 1;
-      dfPlayer.play(mp3CurrentTrack);
+      mp3Play(mp3CurrentTrack);
       mp3Playing    = true;
       mp3TrackStart = millis();
+      mp3PausedAt    = 0;
+      mp3TotalPaused = 0;
       drawMP3PlayScreen();
     }
 
@@ -300,15 +347,16 @@ void handleMP3Buttons() {
       mp3CurrentTrack++;
       if (mp3CurrentTrack > mp3TrackCount) mp3CurrentTrack = 1;
       mp3ListSelected = mp3CurrentTrack - 1;
-      dfPlayer.play(mp3CurrentTrack);
+      mp3Play(mp3CurrentTrack);
       mp3Playing    = true;
       mp3TrackStart = millis();
+      mp3PausedAt    = 0;
+      mp3TotalPaused = 0;
       drawMP3PlayScreen();
     }
 
-    // Periodically redraw to update progress bar
-    static unsigned long lastRedraw = 0;
-    if (mp3Playing && millis() - lastRedraw > 500) {
+    // Periodic redraw for elapsed time - no UART reads
+    if (millis() - lastRedraw > 500) {
       drawMP3PlayScreen();
       lastRedraw = millis();
     }
