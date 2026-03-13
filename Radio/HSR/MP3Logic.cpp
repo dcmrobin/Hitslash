@@ -44,6 +44,10 @@ void enterMP3Mode() {
   mp3Playing     = false;
   dfPlayer.stop();
   drawMP3ListScreen();
+  
+  // Wait for button release before handing control to MP3 button handler
+  while (!digitalRead(BTN_LEFT) || !digitalRead(BTN_RIGHT)) delay(10);
+  delay(200); // extra debounce
 }
 
 // ── File list screen ──────────────────────────────────────────────────────────
