@@ -74,7 +74,7 @@ void initMP3Player() {
   Serial1.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   delay(2000); // GT3200B needs a longer boot delay
 
-  mp3SetVolume(25);
+  mp3SetVolume(15);
   delay(100);
 
   mp3TrackCount = mp3GetTrackCount();
@@ -223,6 +223,22 @@ void drawMP3PlayScreen() {
   display.display();
 }
 
+void mp3CheckFinished() {
+  if (Serial1.available() >= 10) {
+    byte response[10];
+    // Drain bytes until we find a valid packet start
+    if (Serial1.peek() != 0x7E) {
+      Serial1.read();
+      return;
+    }
+    for (int i = 0; i < 10; i++) response[i] = Serial1.read();
+    if (response[0] == 0x7E && response[9] == 0xEF && response[3] == 0x3D) {
+      // Track finished!
+      mp3Playing = false;
+    }
+  }
+}
+
 // ── Button handler ────────────────────────────────────────────────────────────
 
 void handleMP3Buttons() {
@@ -266,7 +282,7 @@ void handleMP3Buttons() {
     // Select track → play
     if (selNow && !selWas) {
       mp3CurrentTrack = mp3ListSelected + 1;
-      mp3SetVolume(25);
+      mp3SetVolume(15);
       mp3Play(mp3CurrentTrack);
       mp3Playing    = true;
       mp3TrackStart = millis();

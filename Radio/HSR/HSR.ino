@@ -154,6 +154,7 @@ void loop() {
 
   if (currentMode == MODE_MP3) {
     handleVolume();
+    mp3CheckFinished();
     handleMP3Buttons();
   }
   

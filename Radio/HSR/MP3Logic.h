@@ -32,6 +32,7 @@ void mp3Play(int track);
 void mp3Pause();
 void mp3Resume();
 void mp3Stop();
+void mp3CheckFinished();
 void mp3SetVolume(int vol);
 void mp3Next();
 void mp3Prev();
