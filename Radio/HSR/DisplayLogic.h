@@ -22,7 +22,8 @@ enum DisplayMode {
   DISPLAY_INFO_KEYBOARD,
   DISPLAY_INFO_MENU,
   DISPLAY_INFO_RESULT,
-  DISPLAY_MP3
+  DISPLAY_MP3,
+  DISPLAY_SPECTRUM
 };
 
 extern DisplayMode currentDisplay;
@@ -43,6 +44,7 @@ void drawNetworkListScreen();
 void drawBatteryIcon(int x, int y);
 void drawHelldiversMajorOrder();
 void drawHelldiversNews();
+void drawSpectrumScreen();
 int drawWrappedText(String text, int x, int y, int maxWidth);
 void buildSetupText();
 void buildNetworkListText();

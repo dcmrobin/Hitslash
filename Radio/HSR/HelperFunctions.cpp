@@ -34,6 +34,8 @@ void handleButtons() {
     // Radio mode buttons
     if (!digitalRead(BTN_UP)) {
       if (currentDisplay == DISPLAY_STATION) {
+        currentDisplay = DISPLAY_SPECTRUM;
+      } else if (currentDisplay == DISPLAY_SPECTRUM) {
         currentDisplay = DISPLAY_WIFI_INFO;
         drawWifiInfoScreen();
       } else if (currentDisplay == DISPLAY_WIFI_INFO) {
@@ -57,6 +59,9 @@ void handleButtons() {
           currentDisplay = DISPLAY_WIFI_INFO;
           drawWifiInfoScreen();
         } else if (currentDisplay == DISPLAY_WIFI_INFO) {
+          currentDisplay = DISPLAY_STATION;
+          drawRadioScreen();
+        } else if (currentDisplay == DISPLAY_SPECTRUM) {
           currentDisplay = DISPLAY_STATION;
           drawRadioScreen();
         }

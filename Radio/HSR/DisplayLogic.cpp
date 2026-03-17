@@ -363,3 +363,37 @@ void buildConnectingText(const char* message) {
   display.println(message);
   display.display();
 }
+
+void drawSpectrumScreen() {
+  updateSpectrum();
+
+  display.clearDisplay();
+
+  // Title
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(stationNames[currentStation]);
+
+  // Draw bars bottom-up, starting at y=120 (leaving top 10px for station name)
+  const int baseY    = 120;
+  const int startX   = 4; // centre 24*5=120px in 128px display
+
+  for (int i = 0; i < SPEC_NUM_BARS; i++) {
+    int x = startX + i * (SPEC_BAR_WIDTH + SPEC_BAR_GAP);
+    int barH = (int)specBarHeights[i];
+    int peakY = baseY - (int)specPeakHeights[i];
+
+    if (barH > 0) {
+      display.fillRect(x, baseY - barH, SPEC_BAR_WIDTH - 1, barH, SH110X_WHITE);
+    }
+
+    // Peak hold dot (2px tall flat bar on top)
+    if (specPeakHeights[i] > 1) {
+      display.fillRect(x, peakY - 2, SPEC_BAR_WIDTH - 1, 2, SH110X_WHITE);
+    }
+  }
+
+  // Battery
+  drawBatteryIcon(0, 0); // top right would clash, so overlay top-left corner
+  display.display();
+}

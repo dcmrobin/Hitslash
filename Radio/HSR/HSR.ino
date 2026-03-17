@@ -50,6 +50,9 @@ void setup() {
 
   // Initialize MP3 player
   initMP3Player();
+
+  // Init spectrum analyzer
+  initSpectrum();
   
   // Check for forced setup mode
   bool setupModeForced = !digitalRead(BTN_REFRESH);
@@ -156,6 +159,14 @@ void loop() {
     handleVolume();
     mp3CheckFinished();
     handleMP3Buttons();
+  }
+
+  if (currentDisplay == DISPLAY_SPECTRUM) {
+    drawSpectrumScreen(); // called every loop iteration for smooth animation
+  } else if (millis() - lastStatusUpdate > 2000) {
+    if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
+    else if (currentDisplay == DISPLAY_WIFI_INFO) drawWifiInfoScreen();
+    lastStatusUpdate = millis();
   }
   
   delay(10);

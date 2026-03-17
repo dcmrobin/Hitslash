@@ -20,6 +20,7 @@
 #include "InfoTerminal.h"
 #include "APIKeys.h"// haha no you can't have my keys
 #include "MP3Logic.h"
+#include "SpectrumLogic.h"
 
 // Debug macro - set to 1 to enable verbose debugging
 #define DEBUG 0
