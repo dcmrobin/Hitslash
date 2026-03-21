@@ -292,14 +292,11 @@ void handleMP3Buttons() {
       drawMP3PlayScreen();
     }
 
-    // LEFT → back to radio
+    // LEFT → FM Radio
     if (leftNow && !leftWas) {
       mp3Stop();
-      mp3Playing     = false;
-      currentMode    = MODE_RADIO;
-      currentDisplay = DISPLAY_STATION;
-      audio.connecttohost(stations[currentStation]);
-      drawRadioScreen();
+      mp3Playing = false;
+      enterFMRadioMode();
       return;
     }
 

@@ -23,7 +23,8 @@ enum DisplayMode {
   DISPLAY_INFO_MENU,
   DISPLAY_INFO_RESULT,
   DISPLAY_MP3,
-  DISPLAY_SPECTRUM
+  DISPLAY_SPECTRUM,
+  DISPLAY_FM_RADIO
 };
 
 extern DisplayMode currentDisplay;

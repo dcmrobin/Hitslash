@@ -18,9 +18,10 @@
 #include "WIFILogic.h"
 #include "RadioAudioLogic.h"
 #include "InfoTerminal.h"
-#include "APIKeys.h"// haha no you can't have my keys
+#include "APIKeys.h"
 #include "MP3Logic.h"
 #include "SpectrumLogic.h"
+#include "FMRadioLogic.h"
 
 // Debug macro - set to 1 to enable verbose debugging
 #define DEBUG 0
@@ -51,7 +52,8 @@ enum DeviceMode {
   MODE_MANAGE_NETWORKS,
   MODE_HELLDIVERS,
   MODE_INFO_TERMINAL,
-  MODE_MP3
+  MODE_MP3,
+  MODE_FM_RADIO          // ← NEW
 };
 
 extern DeviceMode currentMode;

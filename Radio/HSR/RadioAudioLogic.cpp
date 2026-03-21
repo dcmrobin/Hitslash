@@ -70,8 +70,6 @@ void handleVolume() {
   }
   
   if (currentMode == MODE_MP3) {
-    // Speaker on: max 30, speaker off: max 30
-    // Just use full 0-30 range always, the speaker hardware limits itself
     int maxVol = speakerEnabled ? 20 : 30;
     int vol = map(raw, 0, 4095, 0, maxVol);
     if (vol != lastVol) {
@@ -101,15 +99,14 @@ void startRadio() {
 }
 
 void switchStation(int dir) {
-  // Scrolling right past last station -> MP3 Mode
-    if (dir == 1 && currentStation == stationCount - 1) {
-    currentMode    = MODE_MP3;
-    currentDisplay = DISPLAY_MP3;
+  // ── Scrolling RIGHT past the last internet station → FM Radio ──────────────
+  if (dir == 1 && currentStation == stationCount - 1) {
     audio.stopSong();
-    enterMP3Mode();
+    enterFMRadioMode();
     return;
   }
-  // Scrolling left past first station -> Info Terminal
+
+  // ── Scrolling LEFT past the first internet station → Info Terminal ─────────
   if (dir == -1 && currentStation == 0) {
     currentMode    = MODE_INFO_TERMINAL;
     currentDisplay = DISPLAY_INFO_KEYBOARD;

@@ -11,7 +11,7 @@ void setup() {
   
   DEBUG_PRINTLN("\n\n=== HITSLASH RADIO ===\n");
   
-  // Initialize I2C for battery monitor
+  // Initialize I2C for battery monitor (and FM radio chip)
   Wire.begin();
   
   // Initialize pins
@@ -23,10 +23,14 @@ void setup() {
   
   pinMode(LTE_MOSFET_PIN, OUTPUT);
   pinMode(SPEAKER_MOSFET_PIN, OUTPUT);
-  digitalWrite(LTE_MOSFET_PIN, LOW); // Start with modem off
+  digitalWrite(LTE_MOSFET_PIN, LOW);
   speakerEnabled = true;
-  digitalWrite(SPEAKER_MOSFET_PIN, LOW); // Start with speakers enabled
+  digitalWrite(SPEAKER_MOSFET_PIN, LOW);
   modemPoweredOn = false;
+
+  // Keep FM chip off until needed — pull RST low
+  pinMode(FM_RST_PIN, OUTPUT);
+  digitalWrite(FM_RST_PIN, LOW);
   
   // Initialize display
   pinMode(OLED_RESET, OUTPUT);
@@ -86,7 +90,6 @@ void setup() {
   DEBUG_PRINTLN("All connections failed - entering setup");
   buildConnectingText("Connection failed");
   delay(2000);
-  // When entering setup after all fails, ensure setup text is shown
   enterSetupMode();
 }
 
@@ -110,7 +113,7 @@ void loop() {
   if (currentMode == MODE_SETUP) {
     dnsServer.processNextRequest();
     server.handleClient();
-    handleButtons(); // Handle setup mode buttons
+    handleButtons();
   }
   
   if (currentMode == MODE_RADIO) {
@@ -132,7 +135,6 @@ void loop() {
         drawWifiInfoScreen();
         lastStatusUpdate = millis();
       }
-      // Do not refresh display if on speaker control or other screens
     }
   }
   
@@ -161,8 +163,13 @@ void loop() {
     handleMP3Buttons();
   }
 
+  // ── FM Radio mode ─────────────────────────────────────────────────────────
+  if (currentMode == MODE_FM_RADIO) {
+    handleFMRadioButtons();
+  }
+
   if (currentDisplay == DISPLAY_SPECTRUM) {
-    drawSpectrumScreen(); // called every loop iteration for smooth animation
+    drawSpectrumScreen();
   } else if (millis() - lastStatusUpdate > 2000) {
     if (currentDisplay == DISPLAY_STATION) drawRadioScreen();
     else if (currentDisplay == DISPLAY_WIFI_INFO) drawWifiInfoScreen();
