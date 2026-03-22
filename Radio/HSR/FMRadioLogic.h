@@ -5,8 +5,9 @@
 #include <Wire.h>
 
 // ── Pin wiring ────────────────────────────────────────────────────────────────
-// RST and SEN both tied permanently to 3.3V on the breakout.
-// No pin control needed — chip is always on and always in I2C mode.
+// RST → GPIO16 (freed by removing software speaker MOSFET control)
+// SEN tied permanently to 3.3V — chip always in I2C mode
+#define FM_RST_PIN   16
 #define SI4703_ADDR  0x10
 
 // ── Si4703 register indices ───────────────────────────────────────────────────

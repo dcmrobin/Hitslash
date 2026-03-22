@@ -31,9 +31,13 @@ static void fmUpdateRegisters() {
 
 // ── Init sequence (copied from SparkFun lib, unchanged) ───────────────────────
 static void fmInit() {
-  // RST is permanently tied to 3.3V and SEN is permanently tied to 3.3V,
-  // so the chip is always on and always in I2C mode.
-  // Just configure registers directly — no RST pulse needed.
+  // RST on GPIO16, SEN tied to 3.3V (I2C mode permanent).
+  // Pulse RST to properly reset the chip on every entry.
+  pinMode(FM_RST_PIN, OUTPUT);
+  digitalWrite(FM_RST_PIN, LOW);
+  delay(10);
+  digitalWrite(FM_RST_PIN, HIGH);
+  delay(10);
 
   // Enable oscillator
   fmReadRegisters();
