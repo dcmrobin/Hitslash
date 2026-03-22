@@ -63,7 +63,7 @@ extern DeviceMode currentMode;
 #define BTN_UP      6
 #define BTN_DOWN    5
 #define BTN_REFRESH 14
-#define BTN_LEFT    4
+#define BTN_LEFT    8
 #define BTN_RIGHT   3
 
 extern bool refreshHeld;

@@ -8,7 +8,7 @@
 
 #define OLED_DC     9
 #define OLED_CS     10
-#define OLED_RESET  8
+#define OLED_RESET  -1
 
 extern Adafruit_SH1107 display;
 

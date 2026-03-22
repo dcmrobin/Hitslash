@@ -31,43 +31,29 @@ static void fmUpdateRegisters() {
 
 // ── Init sequence (copied from SparkFun lib, unchanged) ───────────────────────
 static void fmInit() {
-  // Quick I2C scan to confirm chip is on bus before init
-  Serial.println("FM I2C scan:");
-  for (int addr = 1; addr < 127; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      Serial.print("  0x"); Serial.println(addr, HEX);
-    }
-  }
-
-  pinMode(FM_RST_PIN, OUTPUT);
-  digitalWrite(FM_RST_PIN, LOW);
-  delay(10);
-  digitalWrite(FM_RST_PIN, HIGH);
-  delay(10);
+  // RST is permanently tied to 3.3V and SEN is permanently tied to 3.3V,
+  // so the chip is always on and always in I2C mode.
+  // Just configure registers directly — no RST pulse needed.
 
   // Enable oscillator
   fmReadRegisters();
   si4703_regs[0x07] = 0x8100;
   fmUpdateRegisters();
-  delay(500);  // oscillator settle time per AN230
+  delay(500);
 
   // Power up, unmute, configure for EU/UK
   fmReadRegisters();
-  si4703_regs[POWERCFG]  = (1 << SMUTE) | (1 << DMUTE) | 0x0001; // unmute + enable
-  si4703_regs[SYSCONFIG1] |= (1 << DE);     // 50 kHz de-emphasis (EU/UK)
-  si4703_regs[SYSCONFIG2]  = (0x00 << 8)    // SEEKTH = 0 (default)
-                            | (0b00 << 6)    // BAND: 87.5-108 MHz
-                            | (0b01 << 4)    // SPACE: 100 kHz (EU)
-                            | 0x0008;        // volume = 8
+  si4703_regs[POWERCFG]   = (1 << SMUTE) | (1 << DMUTE) | 0x0001;
+  si4703_regs[SYSCONFIG1] |= (1 << DE);
+  si4703_regs[SYSCONFIG2]  = (0b00 << 6)   // BAND: 87.5-108 MHz
+                            | (0b01 << 4)   // SPACE: 100 kHz
+                            | 0x0008;       // volume = 8
   fmUpdateRegisters();
+  delay(110);
 
   fmReadRegisters();
-  Serial.print("POWERCFG=0x");   Serial.println(si4703_regs[POWERCFG],   HEX);
-  Serial.print("SYSCONFIG1=0x"); Serial.println(si4703_regs[SYSCONFIG1], HEX);
-  Serial.print("SYSCONFIG2=0x"); Serial.println(si4703_regs[SYSCONFIG2], HEX);
-
-  delay(110);  // max powerup time per datasheet
+  Serial.print("POST-INIT POWERCFG=0x");   Serial.println(si4703_regs[POWERCFG],   HEX);
+  Serial.print("POST-INIT SYSCONFIG2=0x"); Serial.println(si4703_regs[SYSCONFIG2], HEX);
 }
 
 // ── Tune with timeout ─────────────────────────────────────────────────────────
@@ -207,24 +193,29 @@ void enterFMRadioMode() {
   currentDisplay = DISPLAY_FM_RADIO;
   fmSeekUp       = true;
 
+  // Always do a full re-init — the Audio library disrupts I2C while streaming,
+  // so the chip loses its register state every time we leave FM mode.
+  Serial.println("FM: full init");
   fmInit();
   fmPowered = true;
   fmTune(fmChannel);
   fmSetVolume(10);
 
+  fmReadRegisters();
+  Serial.print("POWERCFG=0x"); Serial.println(si4703_regs[POWERCFG], HEX);
+
   drawFMRadioScreen();
 
-  // Wait for triggering button to release
   while (!digitalRead(BTN_RIGHT) || !digitalRead(BTN_LEFT)) delay(10);
   delay(150);
 }
 
-// ── Exit ──────────────────────────────────────────────────────────────────────
+// ── Exit — mute only, leave chip alive so re-entry doesn't need re-init ───────
 void exitFMRadioMode() {
   if (fmPowered) {
-    pinMode(FM_RST_PIN, OUTPUT);
-    digitalWrite(FM_RST_PIN, LOW);
-    fmPowered = false;
+    fmReadRegisters();
+    si4703_regs[POWERCFG] &= ~((1 << SMUTE) | (1 << DMUTE));
+    fmUpdateRegisters();
   }
 }
 

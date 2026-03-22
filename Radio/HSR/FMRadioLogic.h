@@ -5,7 +5,8 @@
 #include <Wire.h>
 
 // ── Pin wiring ────────────────────────────────────────────────────────────────
-#define FM_RST_PIN   37
+// RST and SEN both tied permanently to 3.3V on the breakout.
+// No pin control needed — chip is always on and always in I2C mode.
 #define SI4703_ADDR  0x10
 
 // ── Si4703 register indices ───────────────────────────────────────────────────

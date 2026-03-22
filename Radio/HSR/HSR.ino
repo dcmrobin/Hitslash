@@ -27,10 +27,6 @@ void setup() {
   speakerEnabled = true;
   digitalWrite(SPEAKER_MOSFET_PIN, LOW);
   modemPoweredOn = false;
-
-  // Keep FM chip off until needed — pull RST low
-  pinMode(FM_RST_PIN, OUTPUT);
-  digitalWrite(FM_RST_PIN, LOW);
   
   // Initialize display
   pinMode(OLED_RESET, OUTPUT);
