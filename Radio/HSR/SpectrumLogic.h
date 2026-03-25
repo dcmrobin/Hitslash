@@ -11,8 +11,8 @@
 #define SPEC_BAR_WIDTH      5        // px per bar
 #define SPEC_BAR_GAP        0        // px gap between bars (fits 24 bars in 120px)
 #define SPEC_MAX_HEIGHT     80       // max bar height in pixels
-#define SPEC_PEAK_HOLD_MS   1000     // how long peak dot holds before falling
-#define SPEC_PEAK_FALL_RATE 1        // px per update the peak falls
+#define SPEC_PEAK_HOLD_MS   500     // how long peak dot holds before falling
+#define SPEC_PEAK_FALL_RATE 2        // px per update the peak falls
 
 extern float specBarHeights[SPEC_NUM_BARS];
 extern float specPeakHeights[SPEC_NUM_BARS];

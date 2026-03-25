@@ -5,7 +5,7 @@
 #include "HelperFunctions.h"
 
 #define LTE_MOSFET_PIN 15
-#define SPEAKER_MOSFET_PIN 16
+//#define SPEAKER_MOSFET_PIN 16
 #define MODEM_SSID "hitslash-router"
 #define MODEM_PASSWORD "hitslashradio"
 

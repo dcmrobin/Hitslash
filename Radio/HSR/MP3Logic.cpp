@@ -296,7 +296,16 @@ void handleMP3Buttons() {
     if (leftNow && !leftWas) {
       mp3Stop();
       mp3Playing = false;
-      enterFMRadioMode();
+      //enterFMRadioMode();
+
+      exitFMRadioMode();
+      currentStation = stationCount - 1;
+      currentMode    = MODE_RADIO;
+      currentDisplay = DISPLAY_STATION;
+      audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+      audio.setVolume(12);
+      audio.connecttohost(stations[currentStation]);
+      drawRadioScreen();
       return;
     }
 

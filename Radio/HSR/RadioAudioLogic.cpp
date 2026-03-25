@@ -102,7 +102,8 @@ void switchStation(int dir) {
   // ── Scrolling RIGHT past the last internet station → FM Radio ──────────────
   if (dir == 1 && currentStation == stationCount - 1) {
     audio.stopSong();
-    enterFMRadioMode();
+    //enterFMRadioMode();
+    enterMP3Mode();
     return;
   }
 

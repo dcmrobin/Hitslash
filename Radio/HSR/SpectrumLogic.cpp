@@ -67,7 +67,7 @@ void updateSpectrum() {
     float mag = (barCount[i] > 0) ? barMag[i] / barCount[i] : 0;
 
     // Scale to bar height - tune SPEC_SCALE if bars feel too tall/short
-    const float SPEC_SCALE = 0.04f;
+    const float SPEC_SCALE = 0.045f;
     float h = mag * SPEC_SCALE;
     if (h > SPEC_MAX_HEIGHT) h = SPEC_MAX_HEIGHT;
     if (h < 0) h = 0;
