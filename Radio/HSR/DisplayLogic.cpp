@@ -78,7 +78,7 @@ void drawRadioScreen() {
   if (audio.isRunning()) {
     display.println(stationNames[currentStation]);
   } else if (!audio.isRunning() && millis() - lastReconnect > 5000){
-    display.println("ERROR");
+    display.println("LOADING");
   }
   
   // Volume
@@ -89,7 +89,7 @@ void drawRadioScreen() {
   display.print(vol);
   
   // Volume bar
-  int barWidth = map(vol, 0, 21, 0, 100);
+  int barWidth = map(vol, 0, maxVolumeSpeakerOn, 0, 100);// there isn't any toggle for speaker now, so the max is just this
   display.drawRect(0, 60, 100, 8, SH110X_WHITE);
   display.fillRect(0, 60, barWidth, 8, SH110X_WHITE);
   
