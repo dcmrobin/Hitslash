@@ -111,7 +111,10 @@ void enterMP3Mode() {
   mp3Stop();
   drawMP3ListScreen();
 
-  while (!digitalRead(BTN_LEFT) || !digitalRead(BTN_RIGHT)) delay(10);
+  while (buttons[BTN_IDX_LEFT].held || buttons[BTN_IDX_RIGHT].held) {
+      updateButtons();
+      delay(10);
+  }
   delay(200);
 }
 
@@ -242,45 +245,25 @@ void mp3CheckFinished() {
 // ── Button handler ────────────────────────────────────────────────────────────
 
 void handleMP3Buttons() {
-  static bool upWas      = false;
-  static bool downWas    = false;
-  static bool leftWas    = false;
-  static bool rightWas   = false;
-  static bool selWas     = false;
-  static unsigned long selPressStart = 0;
-  static unsigned long lastRepeat    = 0;
   static unsigned long lastRedraw    = 0;
-  const unsigned long repeatDelay    = 130;
-
-  bool upNow    = !digitalRead(BTN_UP);
-  bool downNow  = !digitalRead(BTN_DOWN);
-  bool leftNow  = !digitalRead(BTN_LEFT);
-  bool rightNow = !digitalRead(BTN_RIGHT);
-  bool selNow   = !digitalRead(BTN_REFRESH);
 
   // ── LIST screen ────────────────────────────────────────────────────────────
   if (mp3Screen == MP3_LIST) {
 
-    if (upNow) {
-      if (!upWas || millis() - lastRepeat > repeatDelay) {
-        mp3ListSelected--;
-        if (mp3ListSelected < 0) mp3ListSelected = mp3TrackCount - 1;
-        drawMP3ListScreen();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_UP].pressed) {
+      mp3ListSelected--;
+      if (mp3ListSelected < 0) mp3ListSelected = mp3TrackCount - 1;
+      drawMP3ListScreen();
     }
 
-    if (downNow) {
-      if (!downWas || millis() - lastRepeat > repeatDelay) {
-        mp3ListSelected++;
-        if (mp3ListSelected >= mp3TrackCount) mp3ListSelected = 0;
-        drawMP3ListScreen();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_DOWN].pressed) {
+      mp3ListSelected++;
+      if (mp3ListSelected >= mp3TrackCount) mp3ListSelected = 0;
+      drawMP3ListScreen();
     }
 
     // Select track → play
-    if (selNow && !selWas) {
+    if (buttons[BTN_IDX_REFRESH].pressed) {
       mp3CurrentTrack = mp3ListSelected + 1;
       mp3SetVolume(15);
       mp3Play(mp3CurrentTrack);
@@ -293,7 +276,7 @@ void handleMP3Buttons() {
     }
 
     // LEFT → FM Radio
-    if (leftNow && !leftWas) {
+    if (buttons[BTN_IDX_LEFT].pressed) {
       mp3Stop();
       mp3Playing = false;
       //enterFMRadioMode();
@@ -310,7 +293,7 @@ void handleMP3Buttons() {
     }
 
     // RIGHT → Info Terminal
-    if (rightNow && !rightWas) {
+    if (buttons[BTN_IDX_RIGHT].pressed) {
       mp3Stop();
       mp3Playing     = false;
       currentMode    = MODE_INFO_TERMINAL;
@@ -324,21 +307,16 @@ void handleMP3Buttons() {
   else if (mp3Screen == MP3_PLAYING) {
 
     // Hold REFRESH → back to list
-    if (selNow) {
-      if (!selWas) selPressStart = millis();
-      if (millis() - selPressStart > 1500) {
+    if (buttons[BTN_IDX_REFRESH].held && millis() - buttons[BTN_IDX_REFRESH].pressTime > 1500) {
         mp3Screen  = MP3_LIST;
         mp3Playing = false;
         mp3Stop();
         drawMP3ListScreen();
-        selWas = true;
         return;
-      }
     }
 
     // Tap REFRESH → toggle pause/play on press
-    if (selNow && !selWas) {
-      selPressStart = millis();
+    if (buttons[BTN_IDX_REFRESH].pressed) {
       if (mp3Playing) {
         mp3Pause();
         mp3Playing  = false;
@@ -352,7 +330,7 @@ void handleMP3Buttons() {
     }
 
     // LEFT → previous track
-    if (leftNow && !leftWas) {
+    if (buttons[BTN_IDX_LEFT].pressed) {
       mp3CurrentTrack--;
       if (mp3CurrentTrack < 1) mp3CurrentTrack = mp3TrackCount;
       mp3ListSelected = mp3CurrentTrack - 1;
@@ -365,7 +343,7 @@ void handleMP3Buttons() {
     }
 
     // RIGHT → next track
-    if (rightNow && !rightWas) {
+    if (buttons[BTN_IDX_RIGHT].pressed) {
       mp3CurrentTrack++;
       if (mp3CurrentTrack > mp3TrackCount) mp3CurrentTrack = 1;
       mp3ListSelected = mp3CurrentTrack - 1;
@@ -383,10 +361,4 @@ void handleMP3Buttons() {
       lastRedraw = millis();
     }
   }
-
-  upWas    = upNow;
-  downWas  = downNow;
-  leftWas  = leftNow;
-  rightWas = rightNow;
-  selWas   = selNow;
 }

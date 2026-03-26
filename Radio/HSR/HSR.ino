@@ -84,6 +84,7 @@ void loop() {
                  loopCount, currentMode, modemPoweredOn ? "ON" : "OFF");
   }
 
+  updateButtons();
   updateBattery();
   checkSecretSequence();
 

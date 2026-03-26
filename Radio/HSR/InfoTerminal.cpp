@@ -286,109 +286,70 @@ void drawInfoHelp() {
 
 // ── Button handler ────────────────────────────────────────────────────────────
 void handleInfoTerminalButtons() {
-  static bool upWas    = false;
-  static bool downWas  = false;
-  static bool leftWas  = false;
-  static bool rightWas = false;
-  static bool selWas   = false;
-  static unsigned long selPressStart = 0;
-  static unsigned long lastRepeat    = 0;
-  const unsigned long repeatDelay    = 130;
-
-  bool upNow    = !digitalRead(BTN_UP);
-  bool downNow  = !digitalRead(BTN_DOWN);
-  bool leftNow  = !digitalRead(BTN_LEFT);
-  bool rightNow = !digitalRead(BTN_RIGHT);
-  bool selNow   = !digitalRead(BTN_REFRESH);
-
   // ── RESULT screen ──────────────────────────────────────────────────────────
   if (itScreen == IT_RESULT) {
-    if (upNow) {
-      if (!upWas || millis() - lastRepeat > repeatDelay) {
-        itResultScrollOffset += 10;
-        if (itResultScrollOffset > 0) itResultScrollOffset = 0;
-        drawInfoResult();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_UP].pressed) {
+      itResultScrollOffset += 10;
+      if (itResultScrollOffset > 0) itResultScrollOffset = 0;
+      drawInfoResult();
     }
-    if (downNow) {
-      if (!downWas || millis() - lastRepeat > repeatDelay) {
-        itResultScrollOffset -= 10;
-        drawInfoResult();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_DOWN].pressed) {
+      itResultScrollOffset -= 10;
+      drawInfoResult();
     }
     // Hold select to exit back to keyboard
-    if (selNow) {
-      if (!selWas) selPressStart = millis();
-      if (millis() - selPressStart > 1500) {
-        itScreen = IT_KEYBOARD;
-        itQueryLen = 0;
-        itQuery[0] = '\0';
-        itResultScrollOffset = 0;
-        kbRow = 0; kbCol = 0;
-        drawInfoKeyboard();
-      }
+    if (buttons[BTN_IDX_REFRESH].pressed) {
+      itScreen = IT_KEYBOARD;
+      itQueryLen = 0;
+      itQuery[0] = '\0';
+      itResultScrollOffset = 0;
+      kbRow = 0; kbCol = 0;
+      drawInfoKeyboard();
     }
-    upWas = upNow; downWas = downNow; selWas = selNow;
     return;
   }
 
   // ── MENU screen ────────────────────────────────────────────────────────────
   if (itScreen == IT_MENU) {
-    if (upNow && !upWas) {
+    if (buttons[BTN_IDX_UP].pressed) {
       itMenuSelected--;
       if (itMenuSelected < 0) itMenuSelected = itMenuCount - 1;
       drawInfoMenu();
     }
-    if (downNow && !downWas) {
+    if (buttons[BTN_IDX_DOWN].pressed) {
       itMenuSelected++;
       if (itMenuSelected >= itMenuCount) itMenuSelected = 0;
       drawInfoMenu();
     }
-    if (selNow && !selWas) {
+    if (buttons[BTN_IDX_REFRESH].pressed) {
       // confirm selection → run lookup
       runInfoLookup(itMenuOptions[itMenuSelected]);
     }
     // LEFT = back to keyboard without clearing query
-    if (leftNow && !leftWas) {
+    if (buttons[BTN_IDX_LEFT].pressed) {
       itScreen = IT_KEYBOARD;
       drawInfoKeyboard();
     }
-    upWas = upNow; downWas = downNow; selWas = selNow;
-    leftWas = leftNow;
     return;
   }
 
 
   // ── HELP screen ──────────────────────────────────────────────────────────────
   if (itScreen == IT_HELP) {
-    if (upNow) {
-      if (!upWas || millis() - lastRepeat > repeatDelay) {
-        itHelpScrollOffset += 10;
-        if (itHelpScrollOffset > 0) itHelpScrollOffset = 0;
-        drawInfoHelp();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_UP].pressed) {
+      itHelpScrollOffset += 10;
+      if (itHelpScrollOffset > 0) itHelpScrollOffset = 0;
+      drawInfoHelp();
     }
-    if (downNow) {
-      if (!downWas || millis() - lastRepeat > repeatDelay) {
-        itHelpScrollOffset -= 10;
-        drawInfoHelp();
-        lastRepeat = millis();
-      }
+    if (buttons[BTN_IDX_DOWN].pressed) {
+      itHelpScrollOffset -= 10;
+      drawInfoHelp();
     }
-    if (selNow) {
-      if (!selWas) selPressStart = millis();
-      if (millis() - selPressStart > 1200) {
-        itScreen = IT_KEYBOARD;
-        drawInfoKeyboard();
-        while (!digitalRead(BTN_REFRESH)) delay(10);
-        selWas = false;
-        return;
-      }
+    if (buttons[BTN_IDX_REFRESH].pressed) {
+      itScreen = IT_KEYBOARD;
+      drawInfoKeyboard();
+      return;
     }
-    upWas = upNow; downWas = downNow; selWas = selNow;
     return;
   }
 
@@ -396,33 +357,27 @@ void handleInfoTerminalButtons() {
   bool redraw = false;
 
   // LEFT / RIGHT — scroll within row (with wrap)
-  if (leftNow) {
-    if (!leftWas || millis() - lastRepeat > repeatDelay) {
-      kbCol--;
-      int len = kbRowLen(kbRow);
-      if (kbCol < 0) kbCol = len - 1;
-      redraw = true;
-      lastRepeat = millis();
-    }
+  if (buttons[BTN_IDX_LEFT].pressed) {
+    kbCol--;
+    int len = kbRowLen(kbRow);
+    if (kbCol < 0) kbCol = len - 1;
+    redraw = true;
   }
-  if (rightNow) {
-    if (!rightWas || millis() - lastRepeat > repeatDelay) {
-      kbCol++;
-      int len = kbRowLen(kbRow);
-      if (kbCol >= len) kbCol = 0;
-      redraw = true;
-      lastRepeat = millis();
-    }
+  if (buttons[BTN_IDX_RIGHT].pressed) {
+    kbCol++;
+    int len = kbRowLen(kbRow);
+    if (kbCol >= len) kbCol = 0;
+    redraw = true;
   }
 
   // UP / DOWN — switch row, clamp col
-  if (upNow && !upWas) {
+  if (buttons[BTN_IDX_UP].pressed) {
     kbRow--;
     if (kbRow < 0) kbRow = 2;
     if (kbCol >= kbRowLen(kbRow)) kbCol = kbRowLen(kbRow) - 1;
     redraw = true;
   }
-  if (downNow && !downWas) {
+  if (buttons[BTN_IDX_DOWN].pressed) {
     kbRow++;
     if (kbRow > 2) kbRow = 0;
     if (kbCol >= kbRowLen(kbRow)) kbCol = kbRowLen(kbRow) - 1;
@@ -430,21 +385,15 @@ void handleInfoTerminalButtons() {
   }
 
   // REFRESH hold on keyboard → show help
-  if (selNow) {
-    if (!selWas) selPressStart = millis();
-    if (millis() - selPressStart > 2200) {
+  if (buttons[BTN_IDX_REFRESH].held && millis() - buttons[BTN_IDX_REFRESH].pressTime > 1500) {
       itScreen = IT_HELP;
       itHelpScrollOffset = 0;
       drawInfoHelp();
-      // Wait for release
-      while (!digitalRead(BTN_REFRESH)) delay(10);
-      selWas = false;
       return;
-    }
   }
 
   // SELECT — type the character or trigger action
-  if (selNow && !selWas) {
+  if (buttons[BTN_IDX_REFRESH].pressed) {
     if (kbRow == 0) {
       // letter
       if (itQueryLen < IT_MAX_QUERY) {
@@ -492,12 +441,6 @@ void handleInfoTerminalButtons() {
   }
 
   if (redraw) drawInfoKeyboard();
-
-  upWas    = upNow;
-  downWas  = downNow;
-  leftWas  = leftNow;
-  rightWas = rightNow;
-  selWas   = selNow;
 }
 
 // ── Menu builder — ranks options by relevance ─────────────────────────────────

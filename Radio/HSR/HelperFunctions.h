@@ -21,7 +21,7 @@
 #include "APIKeys.h"
 #include "MP3Logic.h"
 #include "SpectrumLogic.h"
-#include "FMRadioLogic.h"          // ← FM radio (raw I2C, no SparkFun lib)
+#include "FMRadioLogic.h"
 
 // Debug macro - set to 1 to enable verbose debugging
 #define DEBUG 0
@@ -66,11 +66,35 @@ extern DeviceMode currentMode;
 #define BTN_LEFT    8
 #define BTN_RIGHT   37
 
+// Button indices for the buttons[] array
+#define BTN_IDX_UP      0
+#define BTN_IDX_DOWN    1
+#define BTN_IDX_LEFT    2
+#define BTN_IDX_RIGHT   3
+#define BTN_IDX_REFRESH 4
+#define NUM_BUTTONS     5
+
+// How long a button must be stable before registering (ms)
+const unsigned long newDebounceTime = 20;
+
+struct ButtonState {
+  int pin;
+  bool lastRaw;       // last stable raw reading
+  bool pressed;       // true for one frame when first pressed
+  bool held;          // true every frame while held down
+  bool released;      // true for one frame when released
+  unsigned long pressTime;
+  unsigned long lastDebounceTime;
+};
+
+extern ButtonState buttons[NUM_BUTTONS];
+
 extern bool refreshHeld;
 extern unsigned long refreshPressTime;
 
 void initBattery();
 void updateBattery();
+void updateButtons();   // call once per loop — populates buttons[]
 void handleButtons();
 
 #endif // HELPER_FUNCTIONS_H

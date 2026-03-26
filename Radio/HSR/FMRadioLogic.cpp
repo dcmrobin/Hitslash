@@ -89,7 +89,7 @@ void handleFMRadioButtons() {
   static bool leftWas  = true;
   static bool rightWas = true;
   static bool selWas   = true;
-
+// uprade these to use the new button stuffs
   bool upNow    = !digitalRead(BTN_UP);
   bool downNow  = !digitalRead(BTN_DOWN);
   bool leftNow  = !digitalRead(BTN_LEFT);
