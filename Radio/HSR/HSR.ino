@@ -30,17 +30,11 @@ void setup() {
   display.setCursor(0, 0);
   display.println("HITSLASH RADIO");
   display.println("Booting...");
+  display.println("");
+  display.println("Hold REFRESH");
+  display.println("for setup mode...");
   display.display();
   delay(1000);
-
-  // Initialize battery monitor
-  initBattery();
-
-  // Initialize MP3 player
-  initMP3Player();
-
-  // Init spectrum analyzer
-  initSpectrum();
 
   // Check for forced setup mode
   bool setupModeForced = !digitalRead(BTN_REFRESH);
@@ -50,6 +44,15 @@ void setup() {
     enterSetupMode();
     return;
   }
+
+  // Initialize battery monitor
+  initBattery();
+
+  // Initialize MP3 player
+  initMP3Player();
+
+  // Init spectrum analyzer
+  initSpectrum();
 
   // Normal boot sequence
   DEBUG_PRINTLN("Normal boot sequence");
@@ -76,6 +79,13 @@ void setup() {
 // ================= LOOP ==============================
 
 void loop() {
+  if (currentMode == MODE_SETUP) {
+    dnsServer.processNextRequest();
+    server.handleClient();
+    handleButtons();
+    return;
+  }
+
   static unsigned long loopCount = 0;
   loopCount++;
 
@@ -87,12 +97,6 @@ void loop() {
   updateButtons();
   updateBattery();
   checkSecretSequence();
-
-  if (currentMode == MODE_SETUP) {
-    dnsServer.processNextRequest();
-    server.handleClient();
-    handleButtons();
-  }
 
   if (currentMode == MODE_RADIO) {
     audio.loop();

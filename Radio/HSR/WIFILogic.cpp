@@ -362,21 +362,29 @@ void handleNotFound() {
 }
 
 void enterSetupMode() {
-  DEBUG_PRINTLN("Entering setup mode");
-  
+  DEBUG_PRINTF("ES: Free heap: %d\n", ESP.getFreeHeap());
+  DEBUG_PRINTF("ES: Min free heap ever: %d\n", ESP.getMinFreeHeap());
+  DEBUG_PRINTLN("ES: 1 - start");
   currentMode = MODE_SETUP;
   scrollOffset = 0;
   buildSetupText();
   drawSetupScreen();
+  DEBUG_PRINTLN("ES: 2 - display done");
   
-  // Configure WiFi AP mode
   WiFi.setSleep(false);
+  DEBUG_PRINTLN("ES: 3 - sleep off");
   WiFi.mode(WIFI_AP);
+  DEBUG_PRINTLN("ES: 4 - mode set");
+  delay(100);
   WiFi.softAPConfig(apIP, apIP, netMask);
+  DEBUG_PRINTLN("ES: 5 - AP config");
   WiFi.softAP(AP_SSID);
+  DEBUG_PRINTLN("ES: 6 - AP started");
+  DEBUG_PRINTF("ES: heap after AP start: %d\n", ESP.getFreeHeap());
+  delay(500);
   
-  // Start DNS and web servers
   dnsServer.start(53, "*", apIP);
+  DEBUG_PRINTLN("ES: 7 - DNS started");
   dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
   
   server.on("/", handleRoot);
@@ -384,9 +392,12 @@ void enterSetupMode() {
   server.on("/manage", handleManage);
   server.on("/clear", handleClear);
   server.onNotFound(handleNotFound);
+  DEBUG_PRINTLN("ES: 8 - routes registered");
   
   server.begin();
+  DEBUG_PRINTLN("ES: 9 - server started");
+  DEBUG_PRINTF("ES: heap after server begin: %d\n", ESP.getFreeHeap());
   
-  // Load saved networks
   loadSavedNetworks();
+  DEBUG_PRINTLN("ES: 10 - done");
 }

@@ -995,16 +995,15 @@ void handleSave() {
   
   // Handle different auth types
   if (cred.authType == AUTH_OPEN) {
-    cred.password = "";  // No password for open networks
+    cred.password = "";
     Serial.printf("Open network: %s\n", cred.ssid.c_str());
-  } else { // AUTH_WPA2
+  } else {
     cred.password = server.arg("password");
     Serial.printf("WPA2 network: %s\n", cred.ssid.c_str());
   }
   
   addWiFiCredential(cred);
   
-  // Simple success page
   String page = 
   "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
   "<meta name='viewport' content='width=device-width, initial-scale=1'>"
@@ -1012,15 +1011,9 @@ void handleSave() {
   "<style>"
   "body {font-family: sans-serif; padding: 40px; text-align: center; background: #f0f0f0;}"
   ".success {background: #d4edda; color: #155724; padding: 20px; border-radius: 8px; margin: 20px auto; max-width: 500px;}"
-  "button {background: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 10px;}"
   "</style>"
-  "<script>"
-  "setTimeout(function() {"
-  "  window.location.href = '/';"
-  "}, 3000);"
-  "</script>"
   "</head><body>"
-  "<h2>✓ WiFi Saved!</h2>"
+  "<h2>WiFi Saved!</h2>"
   "<div class='success'>"
   "<p><strong>" + htmlEscape(cred.ssid) + "</strong></p>";
   
@@ -1030,13 +1023,11 @@ void handleSave() {
     page += "<p>WPA2 network saved</p>";
   }
   
-  page += 
-  "<p>Returning to setup page...</p>"
-  "</div>"
-  "<button onclick=\"window.location.href='/'\">BACK NOW</button>"
-  "</body></html>";
+  page += "<p>Radio is restarting...</p></div></body></html>";
   
   server.send(200, "text/html", page);
+  delay(1000);   // give the response time to reach the browser
+  ESP.restart(); // clean reboot so setup() runs fully with all inits
 }
 
 void handleClear() {

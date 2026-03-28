@@ -5,12 +5,20 @@ const char* stations[] = {
   "https://hypr.website/hypr.mp3",
   "https://scenestream.io/necta64.mp3",
   "http://radio.chapter3-it.io/cvgm64",
-  "http://stream.keygen-fm.ru:8082/listen.mp3"
+  "http://stream.keygen-fm.ru:8082/listen.mp3",
+  "https://relay.rainwave.cc/chiptune.mp3",
+  "http://www.lmp.d2g.com:8003/;",
+  "https://Kohina.Brona.dk/icecast/stream.ogg",
+  "http://Oscar.SceneSat.com:8000/scenesat",
+  "http://radio-paralax.de:8000/stream/1/;",
+  "http://195.201.9.210:1541/stream/1/",
+  "http://radio.modules.pl:8500/;",
+  "http://server10.reliastream.com:9000/stream2_autodj"
 };
 const char* stationNames[] = {
-  "HYPR", "NECTA", "CVGM", "KEYGEN"
+  "HYPR", "NECTARINE", "CVGM", "KEYGEN", "RAINWAVE", "UKSCENE", "KOHINA", "SCENESAT", "PARALAX", "VGCLASSIC", "SHOUTCAST", "ARCADE"
 };
-const int stationCount = 4;
+const int stationCount = 12;
 int currentStation = 0;
 unsigned long lastReconnect = 0;
 bool speakerEnabled = true;

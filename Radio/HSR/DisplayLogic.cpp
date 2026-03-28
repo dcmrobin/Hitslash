@@ -64,7 +64,7 @@ void drawSetupScreen() {
   }
   
   // Draw battery in bottom left
-  drawBatteryIcon(0, display.height() - 15);
+  //drawBatteryIcon(0, display.height() - 15);
   
   display.display();
 }

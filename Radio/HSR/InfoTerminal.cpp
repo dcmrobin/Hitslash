@@ -132,7 +132,7 @@ void drawInfoKeyboard() {
 
   // ── hint ──
   display.setCursor(0, y);
-  drawWrappedText("L/R:move U/D:row REF:type HOLD REF:help              INFO TERMINAL", 0, y, 128, 11);
+  drawWrappedText("L/R:move U/D:row REF:type           HOLD REF:help       INFO TERMINAL", 0, y, 128, 11);
 
   // battery
   drawBatteryIcon(0, display.height() - 15);
@@ -186,7 +186,7 @@ void drawInfoResult() {
   itResultScrollOffset = constrain(itResultScrollOffset, minScroll, 0);
 
   // Now draw for real at the clamped scroll offset
-  drawWrappedText(String(itResult) + "\n\nHold REF to exit", 0, itResultScrollOffset, 128);
+  drawWrappedText(String(itResult) + "\nREF to exit", 0, itResultScrollOffset, 128);
 
   display.display();
 }
