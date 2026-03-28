@@ -279,7 +279,7 @@ void handleMP3Buttons() {
     if (buttons[BTN_IDX_LEFT].pressed) {
       mp3Stop();
       mp3Playing = false;
-      //enterFMRadioMode();
+      //enterFMRadioMode();// deprecated
 
       exitFMRadioMode();
       currentStation = stationCount - 1;
@@ -306,57 +306,65 @@ void handleMP3Buttons() {
   // ── PLAYING screen ─────────────────────────────────────────────────────────
   else if (mp3Screen == MP3_PLAYING) {
 
-    // Hold REFRESH → back to list
-    if (buttons[BTN_IDX_REFRESH].held && millis() - buttons[BTN_IDX_REFRESH].pressTime > 1500) {
-        mp3Screen  = MP3_LIST;
-        mp3Playing = false;
-        mp3Stop();
-        drawMP3ListScreen();
-        return;
-    }
-
-    // Tap REFRESH → toggle pause/play on press
-    if (buttons[BTN_IDX_REFRESH].pressed) {
-      if (mp3Playing) {
-        mp3Pause();
-        mp3Playing  = false;
-        mp3PausedAt = millis();
-      } else {
-        mp3Resume();
-        mp3TotalPaused += millis() - mp3PausedAt;
-        mp3Playing      = true;
+    if (currentDisplay == DISPLAY_MP3) {
+      // Hold REFRESH → back to list
+      if (buttons[BTN_IDX_REFRESH].held && millis() - buttons[BTN_IDX_REFRESH].pressTime > 1500) {
+          mp3Screen  = MP3_LIST;
+          mp3Playing = false;
+          mp3Stop();
+          drawMP3ListScreen();
+          return;
       }
-      drawMP3PlayScreen();
+
+      // Tap REFRESH → toggle pause/play on press
+      if (buttons[BTN_IDX_REFRESH].pressed) {
+        if (mp3Playing) {
+          mp3Pause();
+          mp3Playing  = false;
+          mp3PausedAt = millis();
+        } else {
+          mp3Resume();
+          mp3TotalPaused += millis() - mp3PausedAt;
+          mp3Playing      = true;
+        }
+        drawMP3PlayScreen();
+      }
+
+      // LEFT → previous track
+      if (buttons[BTN_IDX_LEFT].pressed) {
+        mp3CurrentTrack--;
+        if (mp3CurrentTrack < 1) mp3CurrentTrack = mp3TrackCount;
+        mp3ListSelected = mp3CurrentTrack - 1;
+        mp3Play(mp3CurrentTrack);
+        mp3Playing    = true;
+        mp3TrackStart = millis();
+        mp3PausedAt    = 0;
+        mp3TotalPaused = 0;
+        drawMP3PlayScreen();
+      }
+
+      // RIGHT → next track
+      if (buttons[BTN_IDX_RIGHT].pressed) {
+        mp3CurrentTrack++;
+        if (mp3CurrentTrack > mp3TrackCount) mp3CurrentTrack = 1;
+        mp3ListSelected = mp3CurrentTrack - 1;
+        mp3Play(mp3CurrentTrack);
+        mp3Playing    = true;
+        mp3TrackStart = millis();
+        mp3PausedAt    = 0;
+        mp3TotalPaused = 0;
+        drawMP3PlayScreen();
+      }
     }
 
-    // LEFT → previous track
-    if (buttons[BTN_IDX_LEFT].pressed) {
-      mp3CurrentTrack--;
-      if (mp3CurrentTrack < 1) mp3CurrentTrack = mp3TrackCount;
-      mp3ListSelected = mp3CurrentTrack - 1;
-      mp3Play(mp3CurrentTrack);
-      mp3Playing    = true;
-      mp3TrackStart = millis();
-      mp3PausedAt    = 0;
-      mp3TotalPaused = 0;
-      drawMP3PlayScreen();
-    }
-
-    // RIGHT → next track
-    if (buttons[BTN_IDX_RIGHT].pressed) {
-      mp3CurrentTrack++;
-      if (mp3CurrentTrack > mp3TrackCount) mp3CurrentTrack = 1;
-      mp3ListSelected = mp3CurrentTrack - 1;
-      mp3Play(mp3CurrentTrack);
-      mp3Playing    = true;
-      mp3TrackStart = millis();
-      mp3PausedAt    = 0;
-      mp3TotalPaused = 0;
-      drawMP3PlayScreen();
+    if (buttons[BTN_IDX_UP].pressed) {
+      previousDisplay = DISPLAY_MP3;
+      currentDisplay = DISPLAY_SPECTRUM;
+      specBinOffset = 0;
     }
 
     // Periodic redraw for elapsed time - no UART reads
-    if (millis() - lastRedraw > 500) {
+    if (millis() - lastRedraw > 500 && currentDisplay == DISPLAY_MP3) {
       drawMP3PlayScreen();
       lastRedraw = millis();
     }

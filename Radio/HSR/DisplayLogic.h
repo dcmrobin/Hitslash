@@ -27,6 +27,7 @@ enum DisplayMode {
   DISPLAY_FM_RADIO
 };
 
+extern DisplayMode previousDisplay;
 extern DisplayMode currentDisplay;
 
 #define MAX_LINES 100

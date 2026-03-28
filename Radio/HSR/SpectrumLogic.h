@@ -17,6 +17,7 @@
 extern float specBarHeights[SPEC_NUM_BARS];
 extern float specPeakHeights[SPEC_NUM_BARS];
 extern unsigned long specPeakTimes[SPEC_NUM_BARS];
+extern int specBinOffset;
 
 void initSpectrum();
 void updateSpectrum();

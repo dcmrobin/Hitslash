@@ -4,6 +4,7 @@
 float specBarHeights[SPEC_NUM_BARS] = {0};
 float specPeakHeights[SPEC_NUM_BARS] = {0};
 unsigned long specPeakTimes[SPEC_NUM_BARS] = {0};
+int specBinOffset = 0;
 
 static double vReal[SPEC_SAMPLES];
 static double vImag[SPEC_SAMPLES];
@@ -13,9 +14,9 @@ ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, SPEC_SAMPLES, SPEC_SAM
 // Maps FFT bin index to one of SPEC_NUM_BARS bars using logarithmic scaling
 // so bass frequencies (left) get more resolution, treble (right) gets less
 static int binToBar(int bin) {
-  int minBin = 1;// skip DC bin
-  int maxBin = 12;
-  if (bin < minBin || bin > maxBin) return -1;  // outside our window, skip
+  int minBin = 1 + specBinOffset;
+  int maxBin = 12 + specBinOffset;
+  if (bin < minBin || bin > maxBin) return -1;
   int bar = (int)((float)(bin - minBin) / (maxBin - minBin) * SPEC_NUM_BARS);
   if (bar < 0) bar = 0;
   if (bar >= SPEC_NUM_BARS) bar = SPEC_NUM_BARS - 1;

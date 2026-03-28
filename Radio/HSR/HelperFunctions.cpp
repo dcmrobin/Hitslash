@@ -74,9 +74,11 @@ void handleButtons() {
 
     // UP cycles screens
     if (buttons[BTN_IDX_UP].pressed) {
-      if (currentDisplay == DISPLAY_STATION) {
+      if (currentDisplay == DISPLAY_STATION || (currentDisplay == DISPLAY_MP3 && mp3Screen == MP3_PLAYING)) {
+        previousDisplay = currentDisplay;
         currentDisplay = DISPLAY_SPECTRUM;
-      } else if (currentDisplay == DISPLAY_SPECTRUM) {
+        specBinOffset = 0;
+      } else if (currentDisplay == DISPLAY_SPECTRUM && previousDisplay == DISPLAY_STATION) {
         currentDisplay = DISPLAY_WIFI_INFO;
         drawWifiInfoScreen();
       } else if (currentDisplay == DISPLAY_WIFI_INFO) {
@@ -100,8 +102,10 @@ void handleButtons() {
         currentDisplay = DISPLAY_STATION;
         drawRadioScreen();
       } else if (currentDisplay == DISPLAY_SPECTRUM) {
-        currentDisplay = DISPLAY_STATION;
-        drawRadioScreen();
+        currentDisplay = previousDisplay;
+        if (previousDisplay == DISPLAY_STATION) {
+          drawRadioScreen();
+        }
       }
     }
 

@@ -2,6 +2,7 @@
 
 Adafruit_SH1107 display = Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, OLED_DC, OLED_RESET, OLED_CS);
 DisplayMode currentDisplay = DISPLAY_STATION;
+DisplayMode previousDisplay = DISPLAY_STATION;
 String lines[MAX_LINES];
 int totalLines = 0;
 int scrollOffset = 0;
@@ -372,7 +373,7 @@ void drawSpectrumScreen() {
   // Title
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.print(stationNames[currentStation]);
+  display.print(currentMode == MODE_MP3 ? "MP3" : stationNames[currentStation]);
 
   // Draw bars bottom-up, starting at y=120 (leaving top 10px for station name)
   const int baseY    = 120;
@@ -393,7 +394,17 @@ void drawSpectrumScreen() {
     }
   }
 
+  if (buttons[BTN_IDX_DOWN].pressed && previousDisplay == DISPLAY_MP3 && mp3Screen == MP3_PLAYING) {
+    currentDisplay = previousDisplay;
+  }
+
+  if (buttons[BTN_IDX_LEFT].pressed) {
+    specBinOffset--;
+  } else if (buttons[BTN_IDX_RIGHT].pressed) {
+    specBinOffset++;
+  }
+
   // Battery
-  drawBatteryIcon(0, 0); // top right would clash, so overlay top-left corner
+  drawBatteryIcon(70, 0); // top left would clash, so overlay top-right corner
   display.display();
 }
