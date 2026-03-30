@@ -432,9 +432,13 @@ void handleInfoTerminalButtons() {
           }
           break;
         case 3: // EXIT — go back to radio
+          currentStation = 0;
           currentMode    = MODE_RADIO;
           currentDisplay = DISPLAY_STATION;
-          drawRadioScreen();
+          switchStation(0);
+          //drawRadioScreen();
+          //audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+          //audio.connecttohost(stations[currentStation]);
           break;
       }
     }

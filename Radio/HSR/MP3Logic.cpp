@@ -285,10 +285,10 @@ void handleMP3Buttons() {
       currentStation = stationCount - 1;
       currentMode    = MODE_RADIO;
       currentDisplay = DISPLAY_STATION;
-      audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-      audio.setVolume(12);
-      audio.connecttohost(stations[currentStation]);
-      drawRadioScreen();
+      switchStation(0);
+      //drawRadioScreen();
+      //audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+      //audio.connecttohost(stations[currentStation]);
       return;
     }
 

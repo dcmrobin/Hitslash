@@ -79,7 +79,7 @@ void drawRadioScreen() {
   if (audio.isRunning()) {
     display.println(stationNames[currentStation]);
   } else if (!audio.isRunning() && millis() - lastReconnect > 5000){
-    display.println("LOADING");
+    display.println(String(stationNames[currentStation]) + "*");
   }
   
   // Volume

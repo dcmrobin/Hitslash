@@ -7,22 +7,27 @@ const char* stations[] = {
   "http://radio.chapter3-it.io/cvgm64",
   "http://stream.keygen-fm.ru:8082/listen.mp3",
   "https://relay.rainwave.cc/chiptune.mp3",
+  "http://ZXM.cz:8000/zx",
   "http://www.lmp.d2g.com:8003/;",
   "https://Kohina.Brona.dk/icecast/stream.ogg",
   "http://Oscar.SceneSat.com:8000/scenesat",
   "http://radio-paralax.de:8000/stream/1/;",
   "http://195.201.9.210:1541/stream/1/",
   "http://radio.modules.pl:8500/;",
-  "http://server10.reliastream.com:9000/stream2_autodj"
+  "http://82.165.247.194:8250/server-02_main_tsa-radio-02_hiqh-quality",
+  "https://Stream.Zeno.FM/nwmvh8t41k8uv",
+  "https://RadioHyrule.com:8443/listen-lo",
+  "http://legacy.ericade.net:8000/stream/2/",
+  "https://Radio.ERB.pw/listen/subspace/radio-64.mp3"
 };
 const char* stationNames[] = {
-  "HYPR", "NECTARINE", "CVGM", "KEYGEN", "RAINWAVE", "UKSCENE", "KOHINA", "SCENESAT", "PARALAX", "VGCLASSIC", "SHOUTCAST", "ARCADE"
+  "HYPR", "NECTARINE", "CVGM", "KEYGEN", "RAINWAVE", "ZXMUSIC", "UKSCENE", "KOHINA", "SCENESAT", "PARALAX", "VGCLASSIC", "SHOUTCAST", "TSA", "PLAYPIXEL", "HYRULE", "ERICADE", "QUANTUM"
 };
-const int stationCount = 12;
+const int stationCount = 17;
 int currentStation = 0;
 unsigned long lastReconnect = 0;
 bool speakerEnabled = true;
-int maxVolumeSpeakerOn = 15;
+int maxVolumeSpeakerOn = 13;
 int maxVolumeSpeakerOff = 21;
 int lastMaxVolume = 21;
 unsigned long lastButtonPress = 0;
@@ -97,20 +102,20 @@ void startRadio() {
     DEBUG_PRINTLN("AP mode disabled");
   }
   
-  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  audio.setVolume(12);
-  audio.connecttohost(stations[currentStation]);
-  
   currentMode = MODE_RADIO;
   currentDisplay = DISPLAY_STATION;
   drawRadioScreen();
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.connecttohost(stations[currentStation]);
 }
 
 void switchStation(int dir) {
+  int timeTillConnect = 0;
   // ── Scrolling RIGHT past the last internet station → FM Radio ──────────────
   if (dir == 1 && currentStation == stationCount - 1) {
     audio.stopSong();
     //enterFMRadioMode();
+    drawMP3ListScreen();
     enterMP3Mode();
     return;
   }
@@ -128,13 +133,32 @@ void switchStation(int dir) {
   if (currentStation < 0) currentStation = stationCount - 1;
   if (currentStation >= stationCount) currentStation = 0;
   
-  audio.stopSong();
-  delay(200);
-  audio.connecttohost(stations[currentStation]);
-  
   if (currentDisplay == DISPLAY_STATION) {
     drawRadioScreen();
   } else {
     drawWifiInfoScreen();
+  }
+
+  audio.stopSong();
+  while (timeTillConnect < 1000) {
+    updateButtons();
+    timeTillConnect++;
+
+    if (buttons[BTN_IDX_LEFT].pressed) {
+      timeTillConnect = 0;
+      switchStation(-1);
+      break;
+    } else if (buttons[BTN_IDX_RIGHT].pressed) {
+      timeTillConnect = 0;
+      switchStation(1);
+      break;
+    }
+
+    if (timeTillConnect > 100) {
+      timeTillConnect = 0;
+      audio.connecttohost(stations[currentStation]);
+      break;
+    }
+    delay(10);
   }
 }
