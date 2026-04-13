@@ -238,6 +238,7 @@ void mp3CheckFinished() {
     if (response[0] == 0x7E && response[9] == 0xEF && response[3] == 0x3D) {
       // Track finished!
       mp3Playing = false;
+      mp3PausedAt = millis();
     }
   }
 }
