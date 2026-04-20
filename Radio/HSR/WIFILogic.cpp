@@ -251,6 +251,7 @@ bool connectToModem() {
   DEBUG_PRINTLN("Modem powered on");
 
   while (!buttons[BTN_IDX_UP].pressed) {
+    updateButtons();
     display.clearDisplay();
     drawWrappedText("Powering modem. Press UP to connect to modem. Only do this when the wifi light is blue on the modem. After pressing UP, press REFRESH to go into setup mode.", 0, 20, 128, 10);
     display.display();
@@ -259,6 +260,7 @@ bool connectToModem() {
   
   // Wait for modem to boot
   for (int waitTime = 0; waitTime < 3000; waitTime += 100) {
+      updateButtons();
       if (buttons[BTN_IDX_REFRESH].pressed) {
           DEBUG_PRINTLN("Modem boot bypassed - entering setup");
           digitalWrite(LTE_MOSFET_PIN, LOW);
