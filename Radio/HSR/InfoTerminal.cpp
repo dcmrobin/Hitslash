@@ -264,6 +264,9 @@ static const char IT_HELP_TEXT[] =
   "Book chapter:verse ref.\n"
   "e.g. JOHN 3:16\n"
   "e.g. PSALM 23:1-6\n\n"
+  "URBAN DICTIONARY\n"
+  "Any slang term or word.\n"
+  "e.g. SIGMA\n\n"
   "ASK AI\n"
   "Any short question.\n"
   "Uses GPT-4o mini.\n"
@@ -483,6 +486,7 @@ void buildInfoMenu() {
   // Baseline scores for universally useful options
   ranked[IQ_WIKIPEDIA].score   += 10;
   ranked[IQ_DICTIONARY].score  += 8;
+  ranked[IQ_URBAN_DICTIONARY].score += 7;
   ranked[IQ_WEATHER].score     += 5;
   ranked[IQ_HISTORY_TODAY].score += 3;
   ranked[IQ_RANDOM_FACT].score  += 1;
@@ -505,6 +509,7 @@ void buildInfoMenu() {
 }
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
+void fetchUrbanDictionary(); // prototype
 void runInfoLookup(InfoQueryType qt) {
   // Show loading screen
   display.clearDisplay();
@@ -538,6 +543,7 @@ void runInfoLookup(InfoQueryType qt) {
     case IQ_LEGO_SET_INFO: fetchLegoSetInfo(); break;
     case IQ_ESV_BIBLE:     fetchESVBible();    break;
     case IQ_OPENAI_ASK:    fetchOpenAIAsk();   break;
+    case IQ_URBAN_DICTIONARY: fetchUrbanDictionary(); break;
     default: itSetResult("Not implemented."); break;
   }
 
@@ -607,6 +613,47 @@ void fetchDictionary() {
     itSetResult(out.c_str());
   } else {
     itSetResult("Word not found.");
+  }
+  http.end();
+}
+
+// ── Urban Dictionary ──────────────────────────────────────────────────────────
+void fetchUrbanDictionary() {
+  if (WiFi.status() != WL_CONNECTED) { itSetResult("No WiFi."); return; }
+  String term = String(itQuery);
+  term.trim();
+  term.replace(" ", "%20");
+  HTTPClient http;
+  http.begin("https://unofficialurbandictionaryapi.com/api/search?term=" + term);
+  int code = http.GET();
+  if (code == 200) {
+    DynamicJsonDocument doc(8192);
+    deserializeJson(doc, http.getString());
+    if (doc["found"].as<bool>() == false) {
+      itSetResult("Term not found in Urban Dictionary.");
+      http.end(); return;
+    }
+    JsonArray data = doc["data"];
+    String out = "URBAN DICTIONARY: " + String(itQuery) + "\n\n";
+    int count = 0;
+    for (JsonObject def : data) {
+      if (count >= 3) break; // Limit to 3 definitions
+      String word = def["word"].as<String>();
+      String meaning = def["meaning"].as<String>();
+      String example = def["example"].as<String>();
+      String contributor = def["contributor"].as<String>();
+      String date = def["date"].as<String>();
+      out += "[" + String(count+1) + "] " + word + "\n";
+      out += meaning + "\n";
+      if (example.length() > 0) {
+        out += "e.g. " + example + "\n";
+      }
+      out += "By " + contributor + " on " + date + "\n\n";
+      count++;
+    }
+    itSetResult(out.c_str());
+  } else {
+    itSetResult("Urban Dictionary lookup failed.");
   }
   http.end();
 }
@@ -1542,6 +1589,7 @@ const char* queryTypeName(InfoQueryType qt) {
     case IQ_LEGO_SET_INFO: return "Lego Set Info";
     case IQ_ESV_BIBLE:     return "ESV Bible";
     case IQ_OPENAI_ASK:    return "Ask AI";
+    case IQ_URBAN_DICTIONARY: return "Urban Dictionary";
     default:              return "Unknown";
   }
 }

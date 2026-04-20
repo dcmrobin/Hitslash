@@ -39,6 +39,7 @@ enum InfoQueryType {
   IQ_LEGO_SET_INFO,
   IQ_ESV_BIBLE,
   IQ_OPENAI_ASK,
+  IQ_URBAN_DICTIONARY,
   IQ_COUNT  // always last
 };
 
@@ -94,6 +95,7 @@ void fetchRandomFact();
 void fetchLegoSetInfo();
 void fetchESVBible();
 void fetchOpenAIAsk();
+void fetchUrbanDictionary();
 
 // Helpers
 bool itLooksLikeIP(const char* s);
