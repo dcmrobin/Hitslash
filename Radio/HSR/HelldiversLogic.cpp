@@ -121,7 +121,7 @@ void registerSequence(int btn) {
       }
     }
 
-    if (match) {
+    if (match && !offlineMode) {
       display.clearDisplay();
       display.setCursor(17, 30);
       display.print("HELLDIVERS 2");

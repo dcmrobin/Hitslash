@@ -95,8 +95,8 @@ void handleVolume() {
 void startRadio() {
   DEBUG_PRINTLN("Starting radio...");
   
-  // Turn off AP mode when entering radio mode
-  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+  // Turn off AP mode when entering radio mode (only if WiFi was initialized)
+  if (!offlineMode && (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA)) {
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
     DEBUG_PRINTLN("AP mode disabled");
@@ -106,7 +106,11 @@ void startRadio() {
   currentDisplay = DISPLAY_STATION;
   drawRadioScreen();
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  audio.connecttohost(stations[currentStation]);
+  
+  // Only try to connect to internet radio if WiFi is available
+  if (!offlineMode) {
+    audio.connecttohost(stations[currentStation]);
+  }
 }
 
 void switchStation(int dir) {
@@ -140,7 +144,7 @@ void switchStation(int dir) {
   }
 
   audio.stopSong();
-  while (timeTillConnect < 1000) {
+  while (timeTillConnect < (offlineMode ? 10 : 1000)) {
     updateButtons();
     timeTillConnect++;
 
@@ -156,7 +160,9 @@ void switchStation(int dir) {
 
     if (timeTillConnect > 100) {
       timeTillConnect = 0;
-      audio.connecttohost(stations[currentStation]);
+      if (!offlineMode) {
+        audio.connecttohost(stations[currentStation]);
+      }
       break;
     }
     delay(10);

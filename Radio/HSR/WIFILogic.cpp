@@ -252,23 +252,29 @@ bool connectToModem() {
   modemPoweredOn = true;
   DEBUG_PRINTLN("Modem powered on");
 
-  while (!buttons[BTN_IDX_UP].pressed) {
+  while (!buttons[BTN_IDX_UP].pressed && !buttons[BTN_IDX_REFRESH].pressed) {
     updateButtons();
     display.clearDisplay();
-    drawWrappedText("Powering modem. Press UP to connect to modem. Only do this when the wifi light is blue on the modem. After pressing UP, press REFRESH to go into setup mode.", 0, 20, 128, 10);
+    drawWrappedText("Powering modem. Press UP to connect to modem, but only when the modem light is blue. To boot offline, press REFRESH now.", 0, 20, 128, 10);
     display.display();
     delay(100);
   }
-  
+
+  if (buttons[BTN_IDX_REFRESH].pressed) {
+    DEBUG_PRINTLN("Booting offline");
+    digitalWrite(LTE_MOSFET_PIN, LOW);
+    modemPoweredOn = false;
+    WiFi.mode(WIFI_OFF);  // Explicitly disable WiFi
+    offlineMode = true;
+    // Clear button state to prevent it from affecting next boot
+    buttons[BTN_IDX_REFRESH].pressed = false;
+    buttons[BTN_IDX_REFRESH].held = false;
+    return false;
+  }
+
   // Wait for modem to boot
   for (int waitTime = 0; waitTime < 3000; waitTime += 100) {
       updateButtons();
-      if (buttons[BTN_IDX_REFRESH].pressed) {
-          DEBUG_PRINTLN("Modem boot bypassed - entering setup");
-          digitalWrite(LTE_MOSFET_PIN, LOW);
-          modemPoweredOn = false;
-          return false;  // Will fall into setup
-      }
 
       if (waitTime % 1000 == 0) {
           int secondsLeft = 3 - (waitTime/1000);
@@ -366,6 +372,7 @@ void handleNotFound() {
 }
 
 void enterSetupMode() {
+  offlineMode = false; // reset offline mode in case we were there before
   DEBUG_PRINTF("ES: Free heap: %d\n", ESP.getFreeHeap());
   DEBUG_PRINTF("ES: Min free heap ever: %d\n", ESP.getMinFreeHeap());
   DEBUG_PRINTLN("ES: 1 - start");

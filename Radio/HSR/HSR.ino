@@ -70,10 +70,15 @@ void setup() {
     return;
   }
 
-  DEBUG_PRINTLN("All connections failed - entering setup");
-  buildConnectingText("Connection failed");
-  delay(2000);
-  enterSetupMode();
+  if (offlineMode) {
+    DEBUG_PRINTLN("Booting offline");
+    startRadio();
+  } else {
+    DEBUG_PRINTLN("All connections failed - entering setup");
+    buildConnectingText("Connection failed");
+    delay(2000);
+    enterSetupMode();
+  }
 }
 
 // ================= LOOP ==============================
@@ -99,11 +104,13 @@ void loop() {
   checkSecretSequence();
 
   if (currentMode == MODE_RADIO) {
-    audio.loop();
-    if (!audio.isRunning() && millis() - lastReconnect > 5000) {
-      DEBUG_PRINTLN("Audio stopped - reconnecting");
-      audio.connecttohost(stations[currentStation]);
-      lastReconnect = millis();
+    if (!offlineMode) {
+      audio.loop();
+      if (!audio.isRunning() && millis() - lastReconnect > 5000) {
+        DEBUG_PRINTLN("Audio stopped - reconnecting");
+        audio.connecttohost(stations[currentStation]);
+        lastReconnect = millis();
+      }
     }
     handleButtons();
     handleVolume();
@@ -123,14 +130,14 @@ void loop() {
   }
 
   if (currentMode == MODE_HELLDIVERS) {
-    audio.loop();
+    if (!offlineMode) audio.loop();
     if (currentDisplay == DISPLAY_MAJOR_ORDER) drawHelldiversMajorOrder();
     else if (currentDisplay == DISPLAY_NEWS) drawHelldiversNews();
     handleHelldiversButtons();
   }
 
   if (currentMode == MODE_INFO_TERMINAL) {
-    audio.loop();
+    if (!offlineMode) audio.loop();
     handleInfoTerminalButtons();
   }
 

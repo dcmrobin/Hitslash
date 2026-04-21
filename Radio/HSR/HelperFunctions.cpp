@@ -5,6 +5,7 @@ float batteryVoltage = 0;
 float batteryPercent = 0;
 unsigned long lastBatteryRead = 0;
 DeviceMode currentMode = MODE_SETUP;
+bool offlineMode = false;
 bool refreshHeld = false;
 unsigned long refreshPressTime = 0;
 

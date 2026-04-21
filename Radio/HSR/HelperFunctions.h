@@ -57,6 +57,7 @@ enum DeviceMode {
 };
 
 extern DeviceMode currentMode;
+extern bool offlineMode;
 
 // ================= BUTTONS ===========================
 
