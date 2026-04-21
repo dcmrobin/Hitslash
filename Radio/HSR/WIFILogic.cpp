@@ -191,6 +191,8 @@ bool tryConnect(const char* ssid, const char* password) {
   
   buildConnectingText(ssid);
   
+  WiFi.disconnect();  // Clean up any previous connection attempt
+  delay(100);
   WiFi.begin(ssid, password);
   
   unsigned long start = millis();
