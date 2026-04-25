@@ -29,6 +29,7 @@ extern const unsigned long debounceTime;
 
 void drawSpeakerControlScreen();
 void handleVolume();
+void initMP3VolumeTask();
 void startRadio();
 void switchStation(int dir);
 

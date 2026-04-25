@@ -50,6 +50,9 @@ void setup() {
 
   // Initialize MP3 player
   initMP3Player();
+  
+  // Initialize MP3 volume background task (runs on Core 0)
+  initMP3VolumeTask();
 
   // Init spectrum analyzer
   initSpectrum();

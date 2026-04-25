@@ -1,6 +1,40 @@
 #include "RadioAudioLogic.h"
+#include <freertos/queue.h>
 
 Audio audio;
+
+// FreeRTOS queue for MP3 volume commands (offloaded to Core 0)
+static QueueHandle_t mp3VolumeQueue = NULL;
+static TaskHandle_t mp3VolumeTaskHandle = NULL;
+
+// Task that runs on Core 0 and handles MP3 volume changes
+static void mp3VolumeTask(void* parameter) {
+  int volume_cmd;
+  while (true) {
+    // Wait for volume command (blocks without consuming CPU)
+    if (xQueueReceive(mp3VolumeQueue, &volume_cmd, portMAX_DELAY)) {
+      mp3SetVolume(volume_cmd);  // This 100ms delay happens on Core 0, not main loop
+    }
+  }
+}
+
+// Initialize the MP3 volume background task
+void initMP3VolumeTask() {
+  // Create queue to hold volume commands
+  mp3VolumeQueue = xQueueCreate(2, sizeof(int));
+  
+  // Create task on Core 0 with lower priority than main loop
+  xTaskCreatePinnedToCore(
+    mp3VolumeTask,           // Task function
+    "MP3VolumeTask",         // Name
+    2048,                    // Stack size (bytes)
+    NULL,                    // Parameter
+    1,                       // Priority (lower than default)
+    &mp3VolumeTaskHandle,    // Task handle
+    0                        // Core 0 (background)
+  );
+  DEBUG_PRINTLN("MP3 volume task initialized on Core 0");
+}
 const char* stations[] = {
   "https://hypr.website/hypr.mp3",
   "https://scenestream.io/necta64.mp3",
@@ -63,6 +97,7 @@ void handleVolume() {
   if (currentMode != MODE_RADIO && currentMode != MODE_MP3) return;
 
   static int lastVol = -1;
+  const int VOLUME_THRESHOLD = 1; // Only send command if volume changes by at least this much
 
   int raw = analogRead(POT_PIN);
   
@@ -85,8 +120,11 @@ void handleVolume() {
   if (currentMode == MODE_MP3) {
     int maxVol = speakerEnabled ? 20 : 30;
     int vol = map(raw, 0, 4095, 0, maxVol);
-    if (vol != lastVol) {
-      mp3SetVolume(vol);
+    // Only queue volume command if volume changed by more than threshold
+    if (abs(vol - lastVol) >= VOLUME_THRESHOLD) {
+      // Queue the volume command to the background task on Core 0
+      // This way the 100ms delay doesn't block the spectrum updates
+      xQueueSendToBack(mp3VolumeQueue, &vol, 0);
       lastVol = vol;
     }
   }
