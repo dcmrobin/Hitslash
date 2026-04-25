@@ -35,7 +35,7 @@ void mp3Play(int track)    { mp3SendCommand(0x03, track); }
 void mp3Pause()            { mp3SendCommand(0x0E, 0); }
 void mp3Resume()           { mp3SendCommand(0x0D, 0); }
 void mp3Stop()             { mp3SendCommand(0x16, 0); }
-void mp3SetVolume(int vol) { mp3SendCommand(0x06, vol); }
+void mp3SetVolume(int vol) { mp3SendCommand(0x06, vol+4); }
 void mp3Next()             { mp3SendCommand(0x01, 0); }
 void mp3Prev()             { mp3SendCommand(0x02, 0); }
 
@@ -74,8 +74,9 @@ void initMP3Player() {
   Serial1.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   delay(2000); // GT3200B needs a longer boot delay
 
-  mp3SetVolume(15);
-  delay(100);
+  int maxVol = speakerEnabled ? 20 : 30;
+  int vol = map(analogRead(POT_PIN), 0, 4095, 0, maxVol);
+  mp3SetVolume(vol);
 
   mp3TrackCount = mp3GetTrackCount();
   if (mp3TrackCount < 0) mp3TrackCount = 0;
@@ -239,6 +240,9 @@ void mp3CheckFinished() {
       // Track finished!
       mp3Playing = false;
       mp3PausedAt = millis();
+      // Repeat the song
+      mp3Resume();
+      mp3Playing    = true;
     }
   }
 }
@@ -266,7 +270,10 @@ void handleMP3Buttons() {
     // Select track → play
     if (buttons[BTN_IDX_REFRESH].pressed) {
       mp3CurrentTrack = mp3ListSelected + 1;
-      mp3SetVolume(15);
+      //mp3SetVolume(15);
+      int maxVol = speakerEnabled ? 20 : 30;
+      int vol = map(analogRead(POT_PIN), 0, 4095, 0, maxVol);
+      mp3SetVolume(vol);
       mp3Play(mp3CurrentTrack);
       mp3Playing    = true;
       mp3TrackStart = millis();
