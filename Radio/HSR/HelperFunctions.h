@@ -97,5 +97,6 @@ void initBattery();
 void updateBattery();
 void updateButtons();   // call once per loop — populates buttons[]
 void handleButtons();
+void connectToStream(bool customBitrate, int bitrate);
 
 #endif // HELPER_FUNCTIONS_H

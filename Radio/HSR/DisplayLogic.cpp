@@ -146,7 +146,9 @@ void drawWifiInfoScreen() {
   
   display.print("Volume: ");
   display.println(audio.getVolume());
-  display.print("");
+  display.print("Bitrate: ");
+  display.println(currentBitrate);
+  display.println(">");
   display.setCursor(0, 80);
   display.print("Hold refresh for");
   display.setCursor(0, 92);

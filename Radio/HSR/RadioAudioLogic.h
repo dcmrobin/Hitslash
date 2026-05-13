@@ -26,6 +26,8 @@ extern int maxVolumeSpeakerOff;
 extern int lastMaxVolume;
 extern unsigned long lastButtonPress;
 extern const unsigned long debounceTime;
+extern int currentBitrate;
+extern bool bitrateChanged;
 
 void drawSpeakerControlScreen();
 void handleVolume();

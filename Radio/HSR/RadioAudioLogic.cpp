@@ -3,6 +3,8 @@
 
 Audio audio;
 
+int currentBitrate = 30;
+bool bitrateChanged = false;
 // FreeRTOS queue for MP3 volume commands (offloaded to Core 0)
 static QueueHandle_t mp3VolumeQueue = NULL;
 static TaskHandle_t mp3VolumeTaskHandle = NULL;
@@ -147,7 +149,7 @@ void startRadio() {
   
   // Only try to connect to internet radio if WiFi is available
   if (!offlineMode) {
-    audio.connecttohost(stations[currentStation]);
+    connectToStream(false, 0);
   }
 }
 
@@ -199,7 +201,7 @@ void switchStation(int dir) {
     if (timeTillConnect > 100) {
       timeTillConnect = 0;
       if (!offlineMode) {
-        audio.connecttohost(stations[currentStation]);
+        connectToStream(false, 0);
       }
       break;
     }

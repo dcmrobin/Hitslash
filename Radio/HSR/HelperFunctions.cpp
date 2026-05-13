@@ -84,6 +84,11 @@ void handleButtons() {
         drawWifiInfoScreen();
       } else if (currentDisplay == DISPLAY_WIFI_INFO) {
         currentDisplay = DISPLAY_STATION;
+        if (bitrateChanged) {
+          audio.stopSong();
+          connectToStream(true, currentBitrate);
+          bitrateChanged = false;
+        }
         drawRadioScreen();
       } else if (currentDisplay == DISPLAY_SPEAKER_CTRL) {
         currentDisplay = DISPLAY_STATION;
@@ -101,6 +106,11 @@ void handleButtons() {
         drawWifiInfoScreen();
       } else if (currentDisplay == DISPLAY_WIFI_INFO) {
         currentDisplay = DISPLAY_STATION;
+        if (bitrateChanged) {
+          audio.stopSong();
+          connectToStream(true, currentBitrate);
+          bitrateChanged = false;
+        }
         drawRadioScreen();
       } else if (currentDisplay == DISPLAY_SPECTRUM) {
         currentDisplay = previousDisplay;
@@ -118,6 +128,10 @@ void handleButtons() {
         speakerEnabled = false;
         lastMaxVolume = maxVolumeSpeakerOff;
         drawSpeakerControlScreen();
+      } else if (currentDisplay == DISPLAY_WIFI_INFO) {
+        currentBitrate -= currentBitrate == 0 ? 0 : 1;
+        bitrateChanged = true;
+        drawWifiInfoScreen();
       }
     }
 
@@ -132,6 +146,10 @@ void handleButtons() {
         }
         lastMaxVolume = maxVolumeSpeakerOn;
         drawSpeakerControlScreen();
+      } else if (currentDisplay == DISPLAY_WIFI_INFO) {
+        currentBitrate += currentBitrate == 200 ? 0 : 1;
+        bitrateChanged = true;
+        drawWifiInfoScreen();
       }
     }
 
@@ -219,4 +237,29 @@ void handleButtons() {
       drawSetupScreen();
     }
   }
+}
+
+void connectToStream(bool customBitrate, int bitrate) {
+  String streamURL = String(stations[currentStation]);
+  if (modemPoweredOn){
+    streamURL = "http://143.47.237.62:35732/stream/";
+    streamURL += currentStation;
+    streamURL += "?br=30k";
+    audio.connecttohost(streamURL.c_str());// force 30kbps for when modem is on to save data
+    currentBitrate = 30;
+    bitrateChanged = false;
+    return;
+  }
+  if (customBitrate) {
+    streamURL = "http://143.47.237.62:35732/stream/";
+    streamURL += currentStation;
+    streamURL += "?br=";
+    streamURL += bitrate;
+    streamURL += "k";
+    audio.connecttohost(streamURL.c_str());
+    return;
+  }
+  currentBitrate = 30;
+  bitrateChanged = false;
+  audio.connecttohost(streamURL.c_str());
 }

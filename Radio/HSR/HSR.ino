@@ -111,7 +111,7 @@ void loop() {
       audio.loop();
       if (!audio.isRunning() && millis() - lastReconnect > 5000) {
         DEBUG_PRINTLN("Audio stopped - reconnecting");
-        audio.connecttohost(stations[currentStation]);
+        connectToStream(false, 0);
         lastReconnect = millis();
       }
     }
